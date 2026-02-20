@@ -146,6 +146,7 @@ This relay approach does not add web UI code to ESP32 firmware binary.
 | `gpio_write` | Set GPIO pin high/low |
 | `gpio_read` | Read GPIO pin state |
 | `delay` | Wait milliseconds (max 60000) |
+| `i2c_scan` | Scan I2C bus and list responding addresses |
 | `memory_set` | Store persistent user key-value (`u_*` keys only) |
 | `memory_get` | Retrieve stored user value (`u_*` keys only) |
 | `memory_list` | List stored user keys (`u_*`) |
@@ -163,6 +164,13 @@ This relay approach does not add web UI code to ESP32 firmware binary.
 | `delete_user_tool` | Delete a user-created tool |
 
 Built-in firmware update tools are temporarily disabled and marked as coming soon.
+
+`i2c_scan` requires `sda_pin` and `scl_pin` inputs (plus optional `frequency_hz`).
+Example tool call input:
+
+```json
+{"sda_pin":8,"scl_pin":9,"frequency_hz":100000}
+```
 
 ### Timezone And Daily Schedules
 

@@ -31,6 +31,12 @@ static const tool_def_t s_tools[] = {
         .input_schema_json = "{\"type\":\"object\",\"properties\":{\"milliseconds\":{\"type\":\"integer\",\"description\":\"Time to wait in ms (max 60000)\"}},\"required\":[\"milliseconds\"]}",
         .execute = tools_delay_handler
     },
+    {
+        .name = "i2c_scan",
+        .description = "Scan I2C bus for responding 7-bit addresses on selected SDA/SCL pins.",
+        .input_schema_json = "{\"type\":\"object\",\"properties\":{\"sda_pin\":{\"type\":\"integer\",\"description\":\"GPIO pin for SDA (subject to GPIO Tool Safety policy)\"},\"scl_pin\":{\"type\":\"integer\",\"description\":\"GPIO pin for SCL (subject to GPIO Tool Safety policy)\"},\"frequency_hz\":{\"type\":\"integer\",\"description\":\"I2C bus speed in Hz (optional, default 100000)\"}},\"required\":[\"sda_pin\",\"scl_pin\"]}",
+        .execute = tools_i2c_scan_handler
+    },
     // Memory
     {
         .name = "memory_set",
