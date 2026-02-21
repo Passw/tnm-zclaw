@@ -41,6 +41,7 @@ PREF_MONITOR_AFTER_FLASH=""
 PREF_LAST_PORT=""
 
 # CLI overrides
+ASSUME_YES=false
 FORCE_INSTALL_IDF=""
 FORCE_REPAIR_IDF=""
 FORCE_INSTALL_QEMU=""
@@ -64,9 +65,9 @@ print_banner() {
 ███████  ██████ ███████ ██   ██  ███ ███
 EOF
     echo -e "${NC}"
-    echo -e "${DIM}─────────────────────────────────────────────${NC}"
-    echo -e "${MAGENTA}${BOLD}       The five-buck assistant.${NC}"
-    echo -e "${DIM}─────────────────────────────────────────────${NC}"
+    echo -e "${DIM}─────────────────────────────────----------───────────${NC}"
+    echo -e "${MAGENTA}${BOLD}       The 5-dollar assistant in 888kb${NC}"
+    echo -e "${DIM}───────────--------─────────────────────--────────────${NC}"
     echo ""
 }
 
@@ -94,6 +95,7 @@ usage() {
 Usage: ./install.sh [options]
 
 Options:
+  -y, --yes                            Assume "yes" for prompts (explicit --no-* still wins)
   --build / --no-build                  Build firmware now
   --flash / --no-flash                  Flash firmware after successful build
   --flash-mode standard|secure          Explicit flash mode for this run (default: standard)
@@ -350,6 +352,7 @@ parse_args() {
             --no-repair-idf) FORCE_REPAIR_IDF="n" ;;
             --remember) REMEMBER_PREFS=true ;;
             --no-remember) REMEMBER_PREFS=false ;;
+            -y|--yes) ASSUME_YES=true ;;
             -h|--help)
                 usage
                 exit 0
@@ -385,6 +388,12 @@ ask_yes_no() {
         fi
         print_status "$prompt: no"
         return 1
+    fi
+
+    if [ "$ASSUME_YES" = true ]; then
+        [ -n "$pref_key" ] && set_preference "$pref_key" "y"
+        print_status "$prompt: yes (-y)"
+        return 0
     fi
 
     if [ -n "$pref_key" ]; then
@@ -838,7 +847,7 @@ if [ "$BUILD_SUCCESS" = true ]; then
             fi
         fi
 
-        if [ -z "$FLASH_PORT" ] && [ -t 0 ]; then
+        if [ -z "$FLASH_PORT" ] && [ -t 0 ] && [ "$ASSUME_YES" != true ]; then
             read -r -p "Select device [1-${#PORT_LIST[@]}] or Enter for auto-detect in flash script: " port_choice
             if [ -n "$port_choice" ]; then
                 if [[ "$port_choice" =~ ^[0-9]+$ ]] && [ "$port_choice" -ge 1 ] && [ "$port_choice" -le "${#PORT_LIST[@]}" ]; then
@@ -1063,6 +1072,7 @@ echo ""
 echo -e "${BOLD}Install flags:${NC}"
 echo ""
 echo -e "  ${YELLOW}./install.sh --build --flash --flash-mode secure${NC}"
+echo -e "  ${YELLOW}./install.sh -y --build --flash --provision${NC}"
 echo -e "  ${YELLOW}./install.sh --flash --provision${NC}"
 echo -e "  ${YELLOW}./install.sh --port /dev/cu.usbmodem* --monitor${NC}"
 echo -e "  ${YELLOW}./install.sh --flash --kill-monitor${NC}"
