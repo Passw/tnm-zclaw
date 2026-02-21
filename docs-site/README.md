@@ -18,5 +18,6 @@ Custom static docs site with a print-book visual style inspired by classic C ref
 - `tools.html` - tool reference and schedule grammar
 - `architecture.html` - runtime/task model
 - `security.html` - security and ops
+- `build-your-own-tool.html` - custom tool design and maintenance workflow
 - `styles.css` - visual system and responsive layout
 - `app.js` - sidebar/nav behavior
