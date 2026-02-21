@@ -78,6 +78,7 @@ This bootstrap script clones/updates zclaw and then runs `./install.sh`. Works o
 
 It also points you to flash helpers that auto-detect serial port/chip and can switch `idf.py` target on mismatch.
 It remembers your choices in `~/.config/zclaw/install.env` (disable with `--no-remember`).
+Saved QEMU/cJSON answers are auto-applied on future runs (override with `--qemu/--no-qemu` and `--cjson/--no-cjson`).
 Interactive `install.sh` flashing defaults to standard mode; flash encryption is only enabled with `--flash-mode secure`.
 
 <details>

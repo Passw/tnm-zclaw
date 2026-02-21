@@ -369,6 +369,7 @@ ask_yes_no() {
     local default="${2:-y}"
     local pref_key="${3:-}"
     local forced_answer="${4:-}"
+    local auto_apply_saved="${5:-false}"
     local answer
     local normalized
     local saved_default
@@ -390,6 +391,14 @@ ask_yes_no() {
         saved_default="$(get_preference "$pref_key")"
         if [ "$saved_default" = "y" ] || [ "$saved_default" = "n" ]; then
             default="$saved_default"
+            if [ "$auto_apply_saved" = "true" ]; then
+                if [ "$saved_default" = "y" ]; then
+                    print_status "$prompt: yes (saved)"
+                    return 0
+                fi
+                print_status "$prompt: no (saved)"
+                return 1
+            fi
         fi
     fi
 
@@ -661,7 +670,7 @@ if check_command qemu-system-riscv32; then
 else
     print_warning "QEMU not found"
 
-    if ask_yes_no "Install QEMU for ESP32 emulation?" "y" "INSTALL_QEMU" "$FORCE_INSTALL_QEMU"; then
+    if ask_yes_no "Install QEMU for ESP32 emulation?" "y" "INSTALL_QEMU" "$FORCE_INSTALL_QEMU" "true"; then
         if [ "$OS" = "macos" ]; then
             echo "Installing QEMU via Homebrew..."
             brew install qemu
@@ -698,7 +707,7 @@ if [ "$CJSON_FOUND" = true ]; then
 else
     print_warning "cJSON not found"
 
-    if ask_yes_no "Install cJSON for running host tests?" "y" "INSTALL_CJSON" "$FORCE_INSTALL_CJSON"; then
+    if ask_yes_no "Install cJSON for running host tests?" "y" "INSTALL_CJSON" "$FORCE_INSTALL_CJSON" "true"; then
         if [ "$OS" = "macos" ]; then
             echo "Installing cJSON via Homebrew..."
             brew install cjson
