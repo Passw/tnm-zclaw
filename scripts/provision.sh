@@ -417,6 +417,124 @@ PY
     return 1
 }
 
+verify_openai_api_key() {
+    local api_key="$1"
+    local api_url="${OPENAI_API_URL:-https://api.openai.com/v1/models}"
+    local response_file
+    local http_code
+
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "Warning: curl not found; skipping OpenAI API check."
+        return 2
+    fi
+
+    response_file="$(mktemp -t zclaw-openai-check.XXXXXX 2>/dev/null || mktemp)"
+    if ! http_code="$(curl -sS -o "$response_file" -w "%{http_code}" \
+        -H "authorization: Bearer $api_key" \
+        "$api_url")"; then
+        rm -f "$response_file"
+        echo "OpenAI API check failed: network/transport error."
+        return 1
+    fi
+
+    if [ "$http_code" = "200" ]; then
+        rm -f "$response_file"
+        echo "OpenAI API check passed (models endpoint reachable)."
+        return 0
+    fi
+
+    echo "OpenAI API check failed (HTTP $http_code)."
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$response_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+try:
+    data = json.loads(p.read_text(encoding="utf-8"))
+except Exception:
+    print("Response preview: " + p.read_text(encoding="utf-8", errors="ignore")[:200])
+    raise SystemExit(0)
+
+msg = ""
+if isinstance(data, dict):
+    if isinstance(data.get("error"), dict):
+        msg = data["error"].get("message") or data["error"].get("type") or ""
+    elif isinstance(data.get("error"), str):
+        msg = data["error"]
+if msg:
+    print("API said: " + msg)
+PY
+    else
+        echo "Response preview: $(head -c 200 "$response_file")"
+    fi
+
+    rm -f "$response_file"
+    return 1
+}
+
+verify_openrouter_api_key() {
+    local api_key="$1"
+    local api_url="${OPENROUTER_API_URL:-https://openrouter.ai/api/v1/models}"
+    local response_file
+    local http_code
+    local referer="${OPENROUTER_HTTP_REFERER:-https://github.com/tnm/zclaw}"
+    local title="${OPENROUTER_APP_TITLE:-zclaw}"
+
+    if ! command -v curl >/dev/null 2>&1; then
+        echo "Warning: curl not found; skipping OpenRouter API check."
+        return 2
+    fi
+
+    response_file="$(mktemp -t zclaw-openrouter-check.XXXXXX 2>/dev/null || mktemp)"
+    if ! http_code="$(curl -sS -o "$response_file" -w "%{http_code}" \
+        -H "authorization: Bearer $api_key" \
+        -H "HTTP-Referer: $referer" \
+        -H "X-Title: $title" \
+        "$api_url")"; then
+        rm -f "$response_file"
+        echo "OpenRouter API check failed: network/transport error."
+        return 1
+    fi
+
+    if [ "$http_code" = "200" ]; then
+        rm -f "$response_file"
+        echo "OpenRouter API check passed (models endpoint reachable)."
+        return 0
+    fi
+
+    echo "OpenRouter API check failed (HTTP $http_code)."
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$response_file" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+p = Path(sys.argv[1])
+try:
+    data = json.loads(p.read_text(encoding="utf-8"))
+except Exception:
+    print("Response preview: " + p.read_text(encoding="utf-8", errors="ignore")[:200])
+    raise SystemExit(0)
+
+msg = ""
+if isinstance(data, dict):
+    if isinstance(data.get("error"), dict):
+        msg = data["error"].get("message") or data["error"].get("type") or ""
+    elif isinstance(data.get("error"), str):
+        msg = data["error"]
+if msg:
+    print("API said: " + msg)
+PY
+    else
+        echo "Response preview: $(head -c 200 "$response_file")"
+    fi
+
+    rm -f "$response_file"
+    return 1
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
         --port)
@@ -597,39 +715,58 @@ if [ -z "$API_KEY" ]; then
     exit 1
 fi
 
-if [ "$VERIFY_API_KEY" = true ] && [ "$BACKEND" = "anthropic" ]; then
-    echo ""
-    while true; do
-        echo "Verifying Anthropic API key with a quick hello request..."
-        if verify_anthropic_api_key "$API_KEY" "$MODEL"; then
-            break
-        fi
+if [ "$VERIFY_API_KEY" = true ]; then
+    VERIFY_LABEL=""
+    VERIFY_FN=""
+    case "$BACKEND" in
+        anthropic)
+            VERIFY_LABEL="Anthropic"
+            VERIFY_FN="verify_anthropic_api_key"
+            ;;
+        openai)
+            VERIFY_LABEL="OpenAI"
+            VERIFY_FN="verify_openai_api_key"
+            ;;
+        openrouter)
+            VERIFY_LABEL="OpenRouter"
+            VERIFY_FN="verify_openrouter_api_key"
+            ;;
+    esac
 
-        if [ "$ASSUME_YES" = true ]; then
-            echo "Error: API check failed in --yes mode."
-            echo "Use --skip-api-check to bypass."
-            exit 1
-        fi
-
+    if [ -n "$VERIFY_FN" ]; then
         echo ""
-        read -r -p "Re-enter API key and retry? [Y/n] " retry_key
-        retry_key="${retry_key:-Y}"
-        if [[ "$retry_key" =~ ^[Yy]$ ]]; then
-            read -r -p "LLM API key (input is visible): " API_KEY
-            if [ -z "$API_KEY" ]; then
-                echo "API key is required."
+        while true; do
+            echo "Verifying ${VERIFY_LABEL} API key with a quick connectivity check..."
+            if "$VERIFY_FN" "$API_KEY" "$MODEL"; then
+                break
             fi
-            continue
-        fi
 
-        read -r -p "Continue provisioning anyway? [y/N] " continue_anyway
-        if [[ "$continue_anyway" =~ ^[Yy]$ ]]; then
-            break
-        fi
+            if [ "$ASSUME_YES" = true ]; then
+                echo "Error: API check failed in --yes mode."
+                echo "Use --skip-api-check to bypass."
+                exit 1
+            fi
 
-        echo "Aborted."
-        exit 1
-    done
+            echo ""
+            read -r -p "Re-enter API key and retry? [Y/n] " retry_key
+            retry_key="${retry_key:-Y}"
+            if [[ "$retry_key" =~ ^[Yy]$ ]]; then
+                read -r -p "LLM API key (input is visible): " API_KEY
+                if [ -z "$API_KEY" ]; then
+                    echo "API key is required."
+                fi
+                continue
+            fi
+
+            read -r -p "Continue provisioning anyway? [y/N] " continue_anyway
+            if [[ "$continue_anyway" =~ ^[Yy]$ ]]; then
+                break
+            fi
+
+            echo "Aborted."
+            exit 1
+        done
+    fi
 fi
 
 if [ "$ASSUME_YES" != true ] && [ -z "$WIFI_PASS" ]; then

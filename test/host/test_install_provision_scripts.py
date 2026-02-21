@@ -140,6 +140,75 @@ LAST_PORT=
         self.assertEqual(proc.returncode, 0, msg=output)
         self.assertEqual(proc.stdout.strip(), ":smiley:")
 
+    def _run_provision_api_check_fail(self, backend: str) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+
+            home = tmp / "home"
+            export_dir = home / "esp" / "esp-idf"
+            export_dir.mkdir(parents=True, exist_ok=True)
+            (export_dir / "export.sh").write_text(
+                "export IDF_PATH=\"$HOME/esp/esp-idf\"\n",
+                encoding="utf-8",
+            )
+
+            _write_executable(
+                bin_dir / "curl",
+                "#!/bin/sh\n"
+                "out=''\n"
+                "while [ $# -gt 0 ]; do\n"
+                "  if [ \"$1\" = \"-o\" ]; then out=\"$2\"; shift 2; continue; fi\n"
+                "  shift\n"
+                "done\n"
+                "if [ -n \"$out\" ]; then\n"
+                "  printf '%s' '{\"error\":{\"message\":\"invalid api key\"}}' > \"$out\"\n"
+                "fi\n"
+                "printf '%s' '401'\n",
+            )
+
+            env = os.environ.copy()
+            env["HOME"] = str(home)
+            env["PATH"] = f"{bin_dir}:/usr/bin:/bin"
+            env["TERM"] = "dumb"
+
+            return subprocess.run(
+                [
+                    str(PROVISION_SH),
+                    "--yes",
+                    "--port",
+                    "/dev/null",
+                    "--ssid",
+                    "TestNet",
+                    "--pass",
+                    "password123",
+                    "--backend",
+                    backend,
+                    "--api-key",
+                    "sk-test",
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+    def test_provision_openai_api_check_runs_in_yes_mode(self) -> None:
+        proc = self._run_provision_api_check_fail("openai")
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertNotEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Verifying OpenAI API key", output)
+        self.assertIn("Error: API check failed in --yes mode.", output)
+
+    def test_provision_openrouter_api_check_runs_in_yes_mode(self) -> None:
+        proc = self._run_provision_api_check_fail("openrouter")
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertNotEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Verifying OpenRouter API key", output)
+        self.assertIn("Error: API check failed in --yes mode.", output)
+
 
 if __name__ == "__main__":
     unittest.main()
