@@ -693,9 +693,14 @@ kbd {
   }
 
   .topbar-actions .utility-btn {
-    width: 2.35rem;
+    width: auto;
     min-width: 2.35rem;
-    padding: 0;
+    padding: 0 0.55rem;
+  }
+
+  .topbar-actions .repo-link-top {
+    font-size: 0.72rem;
+    letter-spacing: 0.03em;
   }
 
   .topbar-actions .theme-switcher {
