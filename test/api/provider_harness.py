@@ -9,7 +9,10 @@ import os
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
+try:
+    import httpx
+except ModuleNotFoundError:
+    httpx = None
 
 
 SYSTEM_PROMPT = """You are zclaw, an AI agent running on an ESP32 microcontroller. \
@@ -274,6 +277,9 @@ def call_api(
     user_tools: list[dict[str, str]],
 ) -> dict[str, Any]:
     """Make API request to provider."""
+    if httpx is None:
+        raise RuntimeError("httpx is required for live API tests (pip install httpx)")
+
     tools = _tool_defs_for_provider(provider, user_tools)
 
     if provider.wire_format == "anthropic":
