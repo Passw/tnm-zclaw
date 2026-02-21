@@ -61,6 +61,25 @@ Agent: Created schedule #7: once in 20 min -> check the garage sensor</pre>
         </section>
 
         <section class="section">
+          <h2>What "888 KB" Means</h2>
+          <p>The <strong>888 KB</strong> target is an all-in firmware cap, not just zclaw application logic. It includes app code plus ESP-IDF/FreeRTOS runtime, Wi-Fi/networking, TLS/crypto, and cert bundle overhead.</p>
+          <p>Current default <code>esp32s3</code> build (<code>idf.py -B build size-components</code>, flash totals):</p>
+          <table>
+            <thead>
+              <tr><th>Layer</th><th>Size</th><th>Share</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>zclaw app logic (<code>libmain.a</code>)</td><td>26,430 bytes (~25.8 KiB)</td><td>~3.1%</td></tr>
+              <tr><td>Wi-Fi + networking stack</td><td>375,278 bytes (~366.5 KiB)</td><td>~43.7%</td></tr>
+              <tr><td>TLS/crypto stack</td><td>125,701 bytes (~122.8 KiB)</td><td>~14.7%</td></tr>
+              <tr><td>Cert bundle + app metadata</td><td>92,654 bytes (~90.5 KiB)</td><td>~10.8%</td></tr>
+              <tr><td>Other ESP-IDF/runtime/drivers/libc</td><td>237,889 bytes (~232.3 KiB)</td><td>~27.7%</td></tr>
+            </tbody>
+          </table>
+          <p class="inline-note"><code>zclaw.bin</code> from the same build is <strong>865,888 bytes</strong> (~845.6 KiB), under the 888 KB cap.</p>
+        </section>
+
+        <section class="section">
           <h2>Read This Manual In Order</h2>
           <div class="chapter-grid">
             <a class="chapter-link" href="getting-started.html">
