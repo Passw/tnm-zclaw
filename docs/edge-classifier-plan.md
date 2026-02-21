@@ -6,6 +6,9 @@ Draft plan for branch `on-device`.
 
 Goal: route common tool calls locally on ESP32-S3, and fall back to cloud LLM when uncertain.
 
+Related:
+- `docs/edge-only-mode-spec.md` for the no-fallback profile variant.
+
 ## Why This Plan Is Updated
 
 This plan is aligned to the **current zclaw codebase** (not a greenfield repo):
@@ -64,6 +67,7 @@ Custom tools today:
 - Fields: `name`, `description`, `action`
 - Runtime semantics: when invoked, agent returns `Execute this action now: <action>` back into the loop for execution by built-ins
 - Current user-tool schemas are empty parameter objects
+- In planned edge-only profile, `create_tool` should stay available but use a structured macro-step payload (see `docs/edge-only-mode-spec.md`)
 
 ## High-Level Architecture
 
@@ -316,4 +320,3 @@ This lets us quantify local hit-rate and tune threshold safely.
 3. Build rules-only parser for `gpio_write`, `gpio_read`, `delay`, `memory_get/set`, `cron_list/delete` first.
 4. Add explicit custom-tool invocation path (`run/use/call <name>`).
 5. Add host tests for local routing decisions and fallback reasons.
-
