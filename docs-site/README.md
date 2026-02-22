@@ -19,5 +19,6 @@ Custom static docs site with a print-book visual style inspired by classic C ref
 - `architecture.html` - runtime/task model
 - `security.html` - security and ops
 - `build-your-own-tool.html` - custom tool design and maintenance workflow
+- `local-dev.html` - local dev, provisioning profiles, and hacking loops
 - `styles.css` - visual system and responsive layout
 - `app.js` - sidebar/nav behavior

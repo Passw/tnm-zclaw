@@ -92,6 +92,30 @@ Recommended starter board: [Seeed XIAO ESP32-C3](https://www.seeedstudio.com/See
 - `./scripts/test.sh` - Run host/device test flows
 - `./scripts/test-api.sh` - Run live provider API checks (manual/local)
 
+## Local Dev & Hacking
+
+For daily iteration, use the local dev guide:
+- [Local Dev & Hacking (docs)](https://zclaw.dev/local-dev.html)
+
+Typical fast loop:
+
+```bash
+./scripts/test.sh host
+./scripts/build.sh
+./scripts/flash.sh --kill-monitor /dev/cu.usbmodem1101
+./scripts/provision-dev.sh --port /dev/cu.usbmodem1101
+./scripts/monitor.sh /dev/cu.usbmodem1101
+```
+
+Profile setup once, then re-use:
+
+```bash
+./scripts/provision-dev.sh --write-template
+# edit ~/.config/zclaw/dev.env
+./scripts/provision-dev.sh --show-config
+./scripts/provision-dev.sh
+```
+
 ## Size Breakdown
 
 Current default `esp32s3` breakdown (`idf.py -B build size-components`, flash totals):
