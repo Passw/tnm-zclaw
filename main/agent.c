@@ -490,13 +490,13 @@ static void process_message(const char *user_message)
 
     if (is_command(user_message, "start")) {
         int64_t now_us = esp_timer_get_time();
-        uint64_t since_last_start_ms = 0;
+        uint32_t since_last_start_ms = 0;
         if (s_last_start_response_us > 0 && now_us > s_last_start_response_us) {
-            since_last_start_ms = (uint64_t)(now_us - s_last_start_response_us) / 1000ULL;
+            since_last_start_ms = (uint32_t)((now_us - s_last_start_response_us) / 1000ULL);
         }
 
         if (s_last_start_response_us > 0 && since_last_start_ms < START_COMMAND_COOLDOWN_MS) {
-            ESP_LOGW(TAG, "Suppressing repeated /start (%" PRIu64 "ms since last response)",
+            ESP_LOGW(TAG, "Suppressing repeated /start (%" PRIu32 "ms since last response)",
                      since_last_start_ms);
             metrics_log_request(&metrics, "start_suppressed");
             return;
@@ -510,17 +510,17 @@ static void process_message(const char *user_message)
 
     if (is_non_command_message) {
         int64_t now_us = esp_timer_get_time();
-        uint64_t since_last_ms = 0;
+        uint32_t since_last_ms = 0;
 
         if (s_last_non_command_response_us > 0 && now_us > s_last_non_command_response_us) {
-            since_last_ms = (uint64_t)(now_us - s_last_non_command_response_us) / 1000ULL;
+            since_last_ms = (uint32_t)((now_us - s_last_non_command_response_us) / 1000ULL);
         }
 
         if (s_last_non_command_text[0] != '\0' &&
             strcmp(user_message, s_last_non_command_text) == 0 &&
             s_last_non_command_response_us > 0 &&
             since_last_ms < MESSAGE_REPLAY_COOLDOWN_MS) {
-            ESP_LOGW(TAG, "Suppressing repeated message replay (%" PRIu64 "ms since last response)",
+            ESP_LOGW(TAG, "Suppressing repeated message replay (%" PRIu32 "ms since last response)",
                      since_last_ms);
             metrics_log_request(&metrics, "replay_suppressed");
             return;
