@@ -46,19 +46,15 @@ Non-interactive install:
 ./install.sh -y
 ```
 
-Important setup notes:
+Setup notes:
 
-- `bootstrap.sh` clones/updates the repo and then runs `./install.sh`.
+- `bootstrap.sh` clones/updates the repo and then runs `./install.sh`. Read more in the full docs.
 - For encrypted credentials in flash, use secure mode (`--flash-mode secure` in install flow, or `./scripts/flash-secure.sh` directly).
 - After flashing, provision WiFi + LLM credentials with `./scripts/provision.sh`.
 - Default LLM rate limits are `100/hour` and `1000/day`; change compile-time limits in `main/config.h` (`RATELIMIT_*`).
-- Telegram control commands: `/start` and `/help` show command help, `/settings` shows bot status, `/stop` pauses message intake, `/resume` re-enables message intake.
 - Quick validation path: run `./scripts/web-relay.sh` and send a test message to confirm the device can answer.
 - If serial port is busy, run `./scripts/release-port.sh` and retry.
 - For repeat local reprovisioning without retyping secrets, use `./scripts/provision-dev.sh` with a local profile file.
-- To reset stored credentials/settings only, run `./scripts/erase.sh --nvs`.
-- To fully factory wipe firmware + settings, run `./scripts/erase.sh --all` (explicit confirmation required).
-- Full setup/provisioning details are in the docs site index.
 
 ## Highlights
 
