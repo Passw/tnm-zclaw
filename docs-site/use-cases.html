@@ -55,7 +55,7 @@
 
         <section class="section">
           <h2>Why This Feels Different</h2>
-          <p>Most assistants can chat. zclaw can chat and directly do things with pins, stored state, and local schedules in the same runtime. You are not only asking for suggestions; you are operating hardware.</p>
+          <p>Most assistants can chat. zclaw can chat and directly do things with pins, stored state, and local schedules in the same runtime. You are operating hardware.</p>
           <ul>
             <li>It keeps persistent values in device storage (NVS) across reboots.</li>
             <li>It can drive GPIO and run scheduled actions without another automation server.</li>
@@ -94,16 +94,16 @@
           <h2>Unique Because It Runs Here</h2>
           <p>zclaw is interesting because it is constrained and embodied:</p>
           <ul>
-            <li><strong>Embodied:</strong> it can immediately touch hardware through GPIO/I2C.</li>
-            <li><strong>Stateful:</strong> memory keys and persona live on the device, not only in a remote chat window.</li>
+            <li><strong>Embodied:</strong> it can immediately reach hardware through GPIO/I2C. It can go around with you.</li>
+            <li><strong>Stateful:</strong> memory keys and persona stay on the device</li>
             <li><strong>Schedulable:</strong> natural language can produce persistent timed behavior.</li>
             <li><strong>Inspectable:</strong> logs and built-in health/version tools make behavior debuggable.</li>
           </ul>
         </section>
 
         <section class="section">
-          <h2>Constraints Are Part Of The Appeal</h2>
-          <p>The limits are a feature: about 400KB RAM at runtime and an 888 KiB firmware target force the assistant to stay concise, explicit, and practical.</p>
+          <h2>Limits Are Part Of The Appeal</h2>
+          <p>The limits are a feature: on this build, zclaw runs with well under 200KB free heap at startup and tighter headroom under load, plus an 888 KiB firmware target. That keeps the assistant concise, explicit, and practical.</p>
           <ul>
             <li>Tool schemas keep behavior grounded in clear actions.</li>
             <li>Small budgets discourage bloated responses and over-engineered flows.</li>

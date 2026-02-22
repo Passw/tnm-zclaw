@@ -434,6 +434,43 @@ TEST(persona_can_change_via_llm_tool_call)
     return 0;
 }
 
+TEST(cron_trigger_blocks_cron_set_tool_call)
+{
+    QueueHandle_t channel_q;
+    char text[CHANNEL_TX_BUF_SIZE];
+    const char *tool_call =
+        "{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_cron_1\","
+        "\"name\":\"cron_set\",\"input\":{\"type\":\"once\",\"delay_minutes\":1,"
+        "\"action\":\"arcade_power state=1\"}}],\"stop_reason\":\"tool_use\"}";
+    const char *final_text =
+        "{\"content\":[{\"type\":\"text\",\"text\":\"running scheduled action now\"}],"
+        "\"stop_reason\":\"end_turn\"}";
+    const char *last_request = NULL;
+
+    reset_state();
+
+    channel_q = xQueueCreate(4, sizeof(channel_output_msg_t));
+    ASSERT(channel_q != NULL);
+    agent_test_set_queues(channel_q, NULL);
+
+    ASSERT(mock_llm_push_result(ESP_OK, tool_call));
+    ASSERT(mock_llm_push_result(ESP_OK, final_text));
+
+    agent_test_process_message("[CRON 1] arcade_power state=1");
+
+    ASSERT(mock_llm_request_count() == 2);
+    ASSERT(mock_tools_execute_calls() == 0);
+    ASSERT(recv_channel_text(channel_q, text, sizeof(text)) == 1);
+    ASSERT_STR_EQ(text, "running scheduled action now");
+
+    last_request = mock_llm_last_request_json();
+    ASSERT(last_request != NULL);
+    ASSERT(strstr(last_request, "cron_set is not allowed during scheduled task execution") != NULL);
+
+    vQueueDelete(channel_q);
+    return 0;
+}
+
 TEST(repeated_non_command_is_suppressed)
 {
     QueueHandle_t channel_q;
@@ -575,6 +612,13 @@ int test_agent_all(void)
 
     printf("  persona_can_change_via_llm_tool_call... ");
     if (test_persona_can_change_via_llm_tool_call() == 0) {
+        printf("OK\n");
+    } else {
+        failures++;
+    }
+
+    printf("  cron_trigger_blocks_cron_set_tool_call... ");
+    if (test_cron_trigger_blocks_cron_set_tool_call() == 0) {
         printf("OK\n");
     } else {
         failures++;

@@ -6,13 +6,22 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Changed
+- _None yet._
+
+## [2.4.2] - 2026-02-22
+
 ### Added
 - docs-site `use-cases.html` chapter focused on practical and playful on-device assistant scenarios.
 - docs-site `changelog.html` page for release notes on the website.
 - top-level README links to the web changelog and repository changelog.
+- Host regression test covering cron-triggered `cron_set` blocking behavior.
 
 ### Changed
 - Agent system prompt now injects runtime device target and configured GPIO tool policy to reduce generic ESP32 pin-answer hallucinations.
+- Cron-triggered turns now block `cron_set` calls so scheduled actions execute directly instead of self-rescheduling.
+- Field Guide docs pages now use page-specific titles/social metadata.
+- Use-cases chapter now describes observed runtime heap headroom instead of a generic 400KB runtime claim.
 
 ## [2.4.1] - 2026-02-22
 

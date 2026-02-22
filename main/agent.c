@@ -386,6 +386,19 @@ static bool is_slash_command(const char *message)
     return *message == '/';
 }
 
+static bool is_cron_trigger_message(const char *message)
+{
+    if (!message) {
+        return false;
+    }
+
+    while (*message && is_whitespace_char(*message)) {
+        message++;
+    }
+
+    return strncmp(message, "[CRON ", 6) == 0;
+}
+
 static void handle_start_command(void)
 {
     static const char *START_HELP_TEXT =
@@ -431,6 +444,7 @@ static void process_message(const char *user_message)
     ESP_LOGI(TAG, "Processing: %s", user_message);
     int history_turn_start = s_history_len;
     bool is_non_command_message = !is_slash_command(user_message);
+    bool is_cron_trigger = is_cron_trigger_message(user_message);
     request_metrics_t metrics = {
         .started_us = esp_timer_get_time(),
         .llm_us_total = 0,
@@ -670,6 +684,11 @@ static void process_message(const char *user_message)
                 snprintf(s_tool_result_buf, sizeof(s_tool_result_buf),
                          "Execute this action now: %s", user_tool->action);
                 ESP_LOGI(TAG, "User tool '%s' action: %s", tool_name, user_tool->action);
+            } else if (is_cron_trigger && strcmp(tool_name, "cron_set") == 0) {
+                snprintf(s_tool_result_buf, sizeof(s_tool_result_buf),
+                         "Error: cron_set is not allowed during scheduled task execution. "
+                         "Execute the scheduled action now instead of creating a new schedule.");
+                ESP_LOGW(TAG, "Blocked cron_set during cron-triggered turn");
             } else {
                 // Built-in tool: execute directly
                 int64_t tool_started_us = esp_timer_get_time();
