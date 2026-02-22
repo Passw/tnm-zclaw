@@ -26,6 +26,12 @@ static const tool_def_t s_tools[] = {
         .execute = tools_gpio_read_handler
     },
     {
+        .name = "gpio_read_all",
+        .description = "Read all tool-allowed GPIO pin states in a single call. Use this when user asks for all GPIO states.",
+        .input_schema_json = "{\"type\":\"object\",\"properties\":{}}",
+        .execute = tools_gpio_read_all_handler
+    },
+    {
         .name = "delay",
         .description = "Wait for specified milliseconds (max 60000). Use between GPIO operations.",
         .input_schema_json = "{\"type\":\"object\",\"properties\":{\"milliseconds\":{\"type\":\"integer\",\"description\":\"Time to wait in ms (max 60000)\"}},\"required\":[\"milliseconds\"]}",

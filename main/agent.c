@@ -29,7 +29,7 @@ static int64_t s_last_start_response_us = 0;
 static int64_t s_last_non_command_response_us = 0;
 static char s_last_non_command_text[CHANNEL_RX_BUF_SIZE] = {0};
 static bool s_messages_paused = false;
-static char s_system_prompt_buf[1536];
+static char s_system_prompt_buf[2048];
 
 typedef enum {
     AGENT_PERSONA_NEUTRAL = 0,
@@ -409,6 +409,7 @@ static void handle_start_command(void)
         "- timezone <name>\n"
         "- gpio set <pin> <0|1>\n"
         "- gpio read <pin>\n"
+        "- gpio read all\n"
         "- i2c scan <sda> <scl>\n"
         "- schedule <periodic|daily|once> ...\n"
         "- memory list|get|set|del\n"

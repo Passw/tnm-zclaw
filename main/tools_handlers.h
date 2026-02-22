@@ -13,6 +13,7 @@
 // GPIO
 bool tools_gpio_write_handler(const cJSON *input, char *result, size_t result_len);
 bool tools_gpio_read_handler(const cJSON *input, char *result, size_t result_len);
+bool tools_gpio_read_all_handler(const cJSON *input, char *result, size_t result_len);
 bool tools_delay_handler(const cJSON *input, char *result, size_t result_len);
 bool tools_i2c_scan_handler(const cJSON *input, char *result, size_t result_len);
 

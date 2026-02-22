@@ -4,6 +4,8 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <cjson/cJSON.h>
+#include "config.h"
 #include "tools_handlers.h"
 
 #define TEST(name) static int test_##name(void)
@@ -13,8 +15,44 @@
         return 1; \
     } \
 } while(0)
+#define ASSERT_STR_EQ(a, b) do { \
+    if (strcmp((a), (b)) != 0) { \
+        printf("  FAIL: '%s' != '%s' (line %d)\n", (a), (b), __LINE__); \
+        return 1; \
+    } \
+} while(0)
 
 bool tools_gpio_test_pin_is_allowed(int pin, const char *csv, int min_pin, int max_pin);
+
+static void build_expected_range_read_all(char *buf, size_t buf_len)
+{
+    char *cursor = buf;
+    size_t remaining = buf_len;
+    int written;
+
+    written = snprintf(cursor, remaining, "GPIO states: ");
+    if (written < 0 || (size_t)written >= remaining) {
+        if (buf_len > 0) {
+            buf[0] = '\0';
+        }
+        return;
+    }
+    cursor += (size_t)written;
+    remaining -= (size_t)written;
+
+    for (int pin = GPIO_MIN_PIN; pin <= GPIO_MAX_PIN; pin++) {
+        written = snprintf(cursor, remaining, "%s%d=LOW",
+                           pin == GPIO_MIN_PIN ? "" : ", ", pin);
+        if (written < 0 || (size_t)written >= remaining) {
+            if (buf_len > 0) {
+                buf[0] = '\0';
+            }
+            return;
+        }
+        cursor += (size_t)written;
+        remaining -= (size_t)written;
+    }
+}
 
 TEST(range_policy)
 {
@@ -48,6 +86,36 @@ TEST(allowlist_policy_tolerates_spaces_and_invalid_tokens)
     return 0;
 }
 
+TEST(read_all_default_range)
+{
+    cJSON *input = cJSON_CreateObject();
+    char result[512] = {0};
+    char expected[512] = {0};
+
+    ASSERT(input != NULL);
+    build_expected_range_read_all(expected, sizeof(expected));
+    ASSERT(tools_gpio_read_all_handler(input, result, sizeof(result)));
+    ASSERT_STR_EQ(result, expected);
+
+    cJSON_Delete(input);
+    return 0;
+}
+
+TEST(read_all_does_not_require_pin_argument)
+{
+    cJSON *input = cJSON_Parse("{\"pin\":999}");
+    char result[512] = {0};
+    char expected[512] = {0};
+
+    ASSERT(input != NULL);
+    build_expected_range_read_all(expected, sizeof(expected));
+    ASSERT(tools_gpio_read_all_handler(input, result, sizeof(result)));
+    ASSERT_STR_EQ(result, expected);
+
+    cJSON_Delete(input);
+    return 0;
+}
+
 int test_tools_gpio_policy_all(void)
 {
     int failures = 0;
@@ -70,6 +138,20 @@ int test_tools_gpio_policy_all(void)
 
     printf("  allowlist_policy_tolerates_spaces_and_invalid_tokens... ");
     if (test_allowlist_policy_tolerates_spaces_and_invalid_tokens() == 0) {
+        printf("OK\n");
+    } else {
+        failures++;
+    }
+
+    printf("  read_all_default_range... ");
+    if (test_read_all_default_range() == 0) {
+        printf("OK\n");
+    } else {
+        failures++;
+    }
+
+    printf("  read_all_does_not_require_pin_argument... ");
+    if (test_read_all_does_not_require_pin_argument() == 0) {
         printf("OK\n");
     } else {
         failures++;

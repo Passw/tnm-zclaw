@@ -60,7 +60,7 @@
               <tr><th>Group</th><th>Tools</th><th>Use</th></tr>
             </thead>
             <tbody>
-              <tr><td>GPIO</td><td><code>gpio_write</code>, <code>gpio_read</code>, <code>delay</code>, <code>i2c_scan</code></td><td>Pins, timings, sensor bus checks.</td></tr>
+              <tr><td>GPIO</td><td><code>gpio_write</code>, <code>gpio_read</code>, <code>gpio_read_all</code>, <code>delay</code>, <code>i2c_scan</code></td><td>Pins, timings, sensor bus checks (including one-call full GPIO state reads).</td></tr>
               <tr><td>Memory</td><td><code>memory_set</code>, <code>memory_get</code>, <code>memory_list</code>, <code>memory_delete</code></td><td>Persistent user state (<code>u_*</code> keys).</td></tr>
               <tr><td>Schedules</td><td><code>cron_set</code>, <code>cron_list</code>, <code>cron_delete</code></td><td>Periodic, daily, and one-shot jobs.</td></tr>
               <tr><td>Clock</td><td><code>get_time</code>, <code>set_timezone</code>, <code>get_timezone</code></td><td>Timezone-aware schedule behavior.</td></tr>

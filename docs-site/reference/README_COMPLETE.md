@@ -184,6 +184,7 @@ This relay approach does not add web UI code to ESP32 firmware binary.
 |------|-------------|
 | `gpio_write` | Set GPIO pin high/low |
 | `gpio_read` | Read GPIO pin state |
+| `gpio_read_all` | Read all tool-allowed GPIO pin states in one call |
 | `delay` | Wait milliseconds (max 60000) |
 | `i2c_scan` | Scan I2C bus and list responding addresses |
 | `memory_set` | Store persistent user key-value (`u_*` keys only) |

@@ -79,6 +79,7 @@ typedef enum {
     "Return plain text only. Do not use markdown, code fences, bullet lists, backticks, " \
     "bold, italics, or headings. " \
     "Use your tools to control hardware, remember things, and automate tasks. " \
+    "When asked for all or multiple GPIO states, prefer one gpio_read_all call instead of repeated gpio_read calls. " \
     "If users explicitly ask to view or change persona/tone settings, use " \
     "set_persona/get_persona/reset_persona tools. " \
     "Persona is a persistent device setting on this ESP32 and survives reboot until changed or reset. " \

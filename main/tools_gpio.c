@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +57,28 @@ static bool gpio_pin_is_allowed(int pin)
         return gpio_pin_in_allowlist(pin, GPIO_ALLOWED_PINS_CSV);
     }
     return pin >= GPIO_MIN_PIN && pin <= GPIO_MAX_PIN;
+}
+
+static bool gpio_append_read_state(char **cursor, size_t *remaining, int pin, bool first_pin)
+{
+    int level;
+    int written;
+
+    gpio_reset_pin(pin);
+    gpio_set_direction(pin, GPIO_MODE_INPUT);
+    level = gpio_get_level(pin);
+
+    written = snprintf(*cursor, *remaining, "%s%d=%s",
+                       first_pin ? "" : ", ",
+                       pin,
+                       level ? "HIGH" : "LOW");
+    if (written < 0 || (size_t)written >= *remaining) {
+        return false;
+    }
+
+    *cursor += (size_t)written;
+    *remaining -= (size_t)written;
+    return true;
 }
 
 bool tools_gpio_write_handler(const cJSON *input, char *result, size_t result_len)
@@ -117,6 +140,79 @@ bool tools_gpio_read_handler(const cJSON *input, char *result, size_t result_len
     int level = gpio_get_level(pin);
 
     snprintf(result, result_len, "Pin %d = %s", pin, level ? "HIGH" : "LOW");
+    return true;
+}
+
+bool tools_gpio_read_all_handler(const cJSON *input, char *result, size_t result_len)
+{
+    char *cursor = result;
+    size_t remaining = result_len;
+    int written;
+    int count = 0;
+
+    (void)input;
+
+    if (!result || result_len == 0) {
+        return false;
+    }
+
+    written = snprintf(cursor, remaining, "GPIO states: ");
+    if (written < 0 || (size_t)written >= remaining) {
+        result[0] = '\0';
+        return false;
+    }
+    cursor += (size_t)written;
+    remaining -= (size_t)written;
+
+    if (GPIO_ALLOWED_PINS_CSV[0] != '\0') {
+        const char *csv_cursor = GPIO_ALLOWED_PINS_CSV;
+
+        while (*csv_cursor != '\0') {
+            char *endptr = NULL;
+            long value;
+
+            while (*csv_cursor == ' ' || *csv_cursor == '\t' || *csv_cursor == ',') {
+                csv_cursor++;
+            }
+            if (*csv_cursor == '\0') {
+                break;
+            }
+
+            value = strtol(csv_cursor, &endptr, 10);
+            if (endptr == csv_cursor) {
+                while (*csv_cursor != '\0' && *csv_cursor != ',') {
+                    csv_cursor++;
+                }
+                continue;
+            }
+            if (value < INT_MIN || value > INT_MAX) {
+                csv_cursor = endptr;
+                continue;
+            }
+
+            if (!gpio_append_read_state(&cursor, &remaining, (int)value, count == 0)) {
+                snprintf(result, result_len, "Error: GPIO state list exceeded response buffer");
+                return false;
+            }
+            count++;
+            csv_cursor = endptr;
+        }
+    } else {
+        int pin;
+        for (pin = GPIO_MIN_PIN; pin <= GPIO_MAX_PIN; pin++) {
+            if (!gpio_append_read_state(&cursor, &remaining, pin, count == 0)) {
+                snprintf(result, result_len, "Error: GPIO state list exceeded response buffer");
+                return false;
+            }
+            count++;
+        }
+    }
+
+    if (count == 0) {
+        snprintf(result, result_len, "Error: no allowed GPIO pins configured");
+        return false;
+    }
+
     return true;
 }
 

@@ -9,6 +9,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Changed
 - _None yet._
 
+## [2.5.0] - 2026-02-22
+
+### Added
+- Added `gpio_read_all`, a bulk GPIO state tool that reads all tool-allowed pins in one call.
+
+### Changed
+- Agent help text now includes `gpio read all`.
+- System prompt now instructs the model to prefer `gpio_read_all` for all/multi-pin state requests.
+- Increased composed system-prompt buffer size to avoid overflow fallback in host/device runs.
+
+### Docs
+- Updated `docs-site/tools.html` and `docs-site/reference/README_COMPLETE.md` with `gpio_read_all`.
+- Updated top-level `README.md` highlights to mention bulk GPIO reads.
+
+### Tests
+- Added host tests for `gpio_read_all` output over the configured range and input-schema tolerance.
+
 ## [2.4.3] - 2026-02-22
 
 ### Changed

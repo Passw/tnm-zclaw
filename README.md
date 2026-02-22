@@ -65,7 +65,7 @@ Non-interactive install:
 - Chat via Telegram or hosted web relay
 - Timezone-aware schedules (`daily`, `periodic`, and one-shot `once`)
 - Built-in + user-defined tools
-- GPIO read/write control with guardrails
+- GPIO read/write control with guardrails (including bulk `gpio_read_all`)
 - Persistent memory across reboots
 - Persona options: `neutral`, `friendly`, `technical`, `witty`
 - Provider support for Anthropic, OpenAI, and OpenRouter
@@ -106,6 +106,9 @@ More details in the [Local Dev & Hacking guide](https://zclaw.dev/local-dev.html
 
 ### Other Useful Scripts
 
+<details>
+<summary>Show scripts</summary>
+
 - `./scripts/flash-secure.sh` - Flash with encryption
 - `./scripts/provision.sh` - Provision credentials to NVS
 - `./scripts/provision-dev.sh` - Local profile wrapper for repeat provisioning
@@ -118,15 +121,19 @@ More details in the [Local Dev & Hacking guide](https://zclaw.dev/local-dev.html
 - `./scripts/test.sh` - Run host/device test flows
 - `./scripts/test-api.sh` - Run live provider API checks (manual/local)
 
+</details>
+
 ## Size Breakdown
 
 Current default `esp32s3` breakdown (`idf.py -B build size-components`, flash totals):
 
-- zclaw app logic (`libmain.a`): `26430` bytes (~25.8 KiB, ~3.1%)
-- Wi-Fi + networking stack: `375278` bytes (~366.5 KiB, ~43.7%)
-- TLS/crypto stack: `125701` bytes (~122.8 KiB, ~14.7%)
-- cert bundle + app metadata: `92654` bytes (~90.5 KiB, ~10.8%)
-- other ESP-IDF/runtime/drivers/libc: `237889` bytes (~232.3 KiB, ~27.7%)
+| Segment | Bytes | Size | Share |
+| --- | ---: | ---: | ---: |
+| zclaw app logic (`libmain.a`) | `26430` | ~25.8 KiB | ~3.1% |
+| Wi-Fi + networking stack | `375278` | ~366.5 KiB | ~43.7% |
+| TLS/crypto stack | `125701` | ~122.8 KiB | ~14.7% |
+| cert bundle + app metadata | `92654` | ~90.5 KiB | ~10.8% |
+| other ESP-IDF/runtime/drivers/libc | `237889` | ~232.3 KiB | ~27.7% |
 
 `zclaw.bin` from the same build is `865888` bytes (~845.6 KiB), which stays under the cap.
 
