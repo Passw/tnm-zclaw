@@ -44,9 +44,6 @@ static int recv_telegram_text(QueueHandle_t queue, char *out, size_t out_len)
     if (xQueueReceive(queue, &msg, 0) != pdTRUE) {
         return 0;
     }
-    if (msg.kind != TELEGRAM_MSG_TEXT) {
-        return 0;
-    }
     snprintf(out, out_len, "%s", msg.text);
     return 1;
 }

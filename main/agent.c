@@ -166,7 +166,6 @@ static void queue_telegram_response(const char *text)
     }
 
     telegram_msg_t msg;
-    msg.kind = TELEGRAM_MSG_TEXT;
     strncpy(msg.text, text, TELEGRAM_MAX_MSG_LEN - 1);
     msg.text[TELEGRAM_MAX_MSG_LEN - 1] = '\0';
 

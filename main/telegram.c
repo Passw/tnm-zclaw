@@ -41,11 +41,7 @@ static int s_consecutive_failures = 0;
 #define BACKOFF_BASE_MS     5000    // 5 seconds
 #define BACKOFF_MAX_MS      300000  // 5 minutes
 #define BACKOFF_MULTIPLIER  2
-#define TELEGRAM_ACTION_TIMEOUT_MS 5000
-#define TELEGRAM_TYPING_DEBOUNCE_MS 4000
 #define TELEGRAM_POLL_TASK_STACK_SIZE 8192
-
-static int64_t s_last_typing_sent_us = 0;
 
 typedef struct {
     char buf[4096];
@@ -374,102 +370,6 @@ static void build_url(char *buf, size_t buf_size, const char *method)
     snprintf(buf, buf_size, "%s%s/%s", TELEGRAM_API_URL, s_bot_token, method);
 }
 
-static void telegram_send_typing_indicator(void)
-{
-    telegram_http_ctx_t *ctx = NULL;
-    esp_http_client_handle_t client = NULL;
-    esp_err_t err = ESP_FAIL;
-    int status = -1;
-    int64_t started_us = esp_timer_get_time();
-    net_diag_snapshot_t snapshot_before = {0};
-    net_diag_snapshot_t snapshot_after = {0};
-    char url[256];
-
-    capture_net_diag_snapshot(&snapshot_before);
-
-    if (!telegram_is_configured() || s_chat_id == 0) {
-        return;
-    }
-
-    build_url(url, sizeof(url), "sendChatAction");
-
-    cJSON *root = cJSON_CreateObject();
-    if (!root) {
-        return;
-    }
-    if (!cJSON_AddNumberToObject(root, "chat_id", (double)s_chat_id) ||
-        !cJSON_AddStringToObject(root, "action", "typing")) {
-        cJSON_Delete(root);
-        return;
-    }
-    char *body = cJSON_PrintUnformatted(root);
-    cJSON_Delete(root);
-    if (!body) {
-        return;
-    }
-
-    ctx = calloc(1, sizeof(*ctx));
-    if (!ctx) {
-        free(body);
-        return;
-    }
-
-    esp_http_client_config_t config = {
-        .url = url,
-        .event_handler = http_event_handler,
-        .user_data = ctx,
-        .timeout_ms = TELEGRAM_ACTION_TIMEOUT_MS,
-        .crt_bundle_attach = esp_crt_bundle_attach,
-    };
-
-    client = esp_http_client_init(&config);
-    if (!client) {
-        free(body);
-        free(ctx);
-        capture_net_diag_snapshot(&snapshot_after);
-        log_http_diag("sendChatAction", NULL, ESP_FAIL, -1, started_us, 0, 0, 0, 0, 0,
-                      &snapshot_before, &snapshot_after);
-        return;
-    }
-
-    esp_http_client_set_method(client, HTTP_METHOD_POST);
-    esp_http_client_set_header(client, "Content-Type", "application/json");
-    esp_http_client_set_post_field(client, body, strlen(body));
-
-    err = esp_http_client_perform(client);
-    if (err == ESP_OK) {
-        status = esp_http_client_get_status_code(client);
-        if (status != 200) {
-            log_http_failure("sendChatAction", client, ESP_FAIL, status);
-            err = ESP_FAIL;
-        }
-    } else {
-        log_http_failure("sendChatAction", client, err, -1);
-    }
-
-    capture_net_diag_snapshot(&snapshot_after);
-    log_http_diag("sendChatAction", client, err, status, started_us, ctx->len, 0, 0, 0, 0,
-                  &snapshot_before, &snapshot_after);
-
-    esp_http_client_cleanup(client);
-    free(body);
-    free(ctx);
-}
-
-static void telegram_queue_typing_indicator(void)
-{
-    telegram_msg_t msg = {0};
-
-    if (!s_output_queue) {
-        return;
-    }
-
-    msg.kind = TELEGRAM_MSG_TYPING;
-    if (xQueueSend(s_output_queue, &msg, 0) != pdTRUE) {
-        ESP_LOGD(TAG, "Skipping typing indicator: output queue full");
-    }
-}
-
 esp_err_t telegram_send(const char *text)
 {
     telegram_http_ctx_t *ctx = NULL;
@@ -789,9 +689,6 @@ static esp_err_t telegram_poll(void)
 
                 if (xQueueSend(s_input_queue, &msg, pdMS_TO_TICKS(100)) != pdTRUE) {
                     ESP_LOGW(TAG, "Input queue full");
-                } else {
-                    // Queue async "working..." feedback without blocking poll loop.
-                    telegram_queue_typing_indicator();
                 }
             }
         }
@@ -846,27 +743,7 @@ static void telegram_send_task(void *arg)
                 continue;
             }
 
-            if (s_send_msg.kind == TELEGRAM_MSG_TYPING) {
-                int64_t now_us = esp_timer_get_time();
-                if (s_last_typing_sent_us > 0 && now_us > s_last_typing_sent_us) {
-                    uint64_t since_last_ms =
-                        (uint64_t)(now_us - s_last_typing_sent_us) / 1000ULL;
-                    if (since_last_ms < TELEGRAM_TYPING_DEBOUNCE_MS) {
-                        continue;
-                    }
-                }
-
-                s_last_typing_sent_us = now_us;
-                telegram_send_typing_indicator();
-                continue;
-            }
-
-            if (s_send_msg.kind == TELEGRAM_MSG_TEXT) {
-                telegram_send(s_send_msg.text);
-                continue;
-            }
-
-            ESP_LOGW(TAG, "Ignoring unknown telegram queue message type=%d", (int)s_send_msg.kind);
+            telegram_send(s_send_msg.text);
         }
     }
 }
