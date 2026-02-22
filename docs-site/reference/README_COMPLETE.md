@@ -139,16 +139,23 @@ messages to the board over serial.
    ```bash
    export ZCLAW_WEB_API_KEY='choose-a-long-random-secret'
    ```
+   Required when binding relay on non-loopback hosts (for example `0.0.0.0`).
 2. Run against a connected device.
    Local repo checkout:
    ```bash
-   ./scripts/web-relay.sh --serial-port /dev/cu.usbmodem1101 --host 0.0.0.0 --port 8787
+   ./scripts/web-relay.sh --serial-port /dev/cu.usbmodem1101 --host 127.0.0.1 --port 8787
    ```
    No-clone bootstrap:
    ```bash
+   ZCLAW_WEB_API_KEY='choose-a-long-random-secret' \
    bash <(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bootstrap-web-relay.sh) -- --serial-port /dev/cu.usbmodem1101 --host 0.0.0.0 --port 8787
    ```
 3. Open `http://<host>:8787` from phone or desktop.
+
+Optional cross-origin browser clients: set an exact allowed origin with
+`--cors-origin http://localhost:5173` or
+`export ZCLAW_WEB_CORS_ORIGIN='http://localhost:5173'`.
+If unset, relay requests are same-origin only.
 
 Note: only one process should hold the serial port at a time. If you also run
 `idf.py monitor` (or any serial console) against the same `/dev/cu.*` device,
@@ -159,7 +166,7 @@ The no-clone bootstrap stores relay files in `~/.local/share/zclaw/web-relay` by
 No board yet? Run with a built-in mock responder:
 
 ```bash
-./scripts/web-relay.sh --mock-agent --host 0.0.0.0 --port 8787
+./scripts/web-relay.sh --mock-agent --host 127.0.0.1 --port 8787
 ```
 
 This relay approach does not add web UI code to ESP32 firmware binary.
@@ -546,6 +553,7 @@ The script automatically detects if a device has encryption enabled and uses the
 |---------------|---------|
 | **Permanent** | Can't disable encryption or go back to unencrypted |
 | **Key backup** | Back up `keys/flash_key_<MAC>.bin` — needed for USB flashing |
+| **Encrypted NVS startup** | With flash encryption active, startup fails if encrypted NVS init fails. Dev-only override: enable `CONFIG_ZCLAW_ALLOW_UNENCRYPTED_NVS_FALLBACK` in `idf.py menuconfig` under `zclaw Configuration`. |
 | **Remote OTA tools** | Coming soon (currently disabled) |
 | **Lost key** | USB flashing won't work without the key backup |
 

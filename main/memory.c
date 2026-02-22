@@ -64,8 +64,14 @@ esp_err_t memory_init(void)
             ESP_LOGI(TAG, "Encrypted NVS initialized");
             return ESP_OK;
         }
-        // Fall through to unencrypted if encrypted init fails
-        ESP_LOGW(TAG, "Encrypted NVS init failed, falling back to unencrypted");
+#if CONFIG_ZCLAW_ALLOW_UNENCRYPTED_NVS_FALLBACK
+        // Optional development-only escape hatch. Keep disabled in normal builds.
+        ESP_LOGW(TAG, "Encrypted NVS init failed, falling back to unencrypted (override enabled)");
+#else
+        ESP_LOGE(TAG, "Encrypted NVS init failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Refusing unencrypted NVS fallback while flash encryption is active");
+        return err != ESP_OK ? err : ESP_FAIL;
+#endif
     }
 
     // Standard unencrypted NVS init

@@ -17,11 +17,14 @@ from web_relay import (  # noqa: E402
     SerialAgentBridge,
     create_agent_bridge,
     describe_serial_exception,
+    is_loopback_host,
     is_probable_serial_exception,
     is_probable_esp_log_line,
     is_request_authorized,
     normalize_api_key,
+    normalize_origin,
     resolve_serial_port,
+    validate_bind_security,
 )
 
 
@@ -36,6 +39,24 @@ class WebRelayTests(unittest.TestCase):
         self.assertFalse(is_request_authorized(None, "secret"))
         self.assertFalse(is_request_authorized("bad", "secret"))
         self.assertTrue(is_request_authorized("secret", "secret"))
+
+    def test_normalize_origin(self) -> None:
+        self.assertIsNone(normalize_origin(None))
+        self.assertIsNone(normalize_origin("   "))
+        self.assertEqual(normalize_origin("  http://localhost:5173 "), "http://localhost:5173")
+
+    def test_is_loopback_host(self) -> None:
+        self.assertTrue(is_loopback_host("127.0.0.1"))
+        self.assertTrue(is_loopback_host("localhost"))
+        self.assertTrue(is_loopback_host("::1"))
+        self.assertFalse(is_loopback_host("0.0.0.0"))
+        self.assertFalse(is_loopback_host("192.168.1.2"))
+
+    def test_validate_bind_security(self) -> None:
+        validate_bind_security("127.0.0.1", None)
+        validate_bind_security("0.0.0.0", "secret")
+        with self.assertRaises(RuntimeError):
+            validate_bind_security("0.0.0.0", None)
 
     def test_log_line_classifier(self) -> None:
         self.assertTrue(is_probable_esp_log_line("I (12) main: hello"))
