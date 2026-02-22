@@ -309,11 +309,21 @@ static esp_err_t telegram_poll(void)
     cJSON *update;
     cJSON_ArrayForEach(update, result) {
         cJSON *update_id = cJSON_GetObjectItem(update, "update_id");
-        if (update_id && cJSON_IsNumber(update_id)) {
-            // Note: cJSON stores numbers as double (53-bit precision).
-            // Telegram update IDs fit safely within this range.
-            s_last_update_id = (int64_t)update_id->valuedouble;
+        int64_t incoming_update_id = -1;
+        if (!update_id || !cJSON_IsNumber(update_id)) {
+            ESP_LOGW(TAG, "Skipping update without numeric update_id");
+            continue;
         }
+
+        // Note: cJSON stores numbers as double (53-bit precision).
+        // Telegram update IDs fit safely within this range.
+        incoming_update_id = (int64_t)update_id->valuedouble;
+        if (incoming_update_id <= s_last_update_id) {
+            ESP_LOGW(TAG, "Skipping stale/duplicate update_id=%" PRId64 " (last=%" PRId64 ")",
+                     incoming_update_id, s_last_update_id);
+            continue;
+        }
+        s_last_update_id = incoming_update_id;
 
         cJSON *message = cJSON_GetObjectItem(update, "message");
         if (!message) continue;
@@ -350,7 +360,7 @@ static esp_err_t telegram_poll(void)
                 strncpy(msg.text, text->valuestring, CHANNEL_RX_BUF_SIZE - 1);
                 msg.text[CHANNEL_RX_BUF_SIZE - 1] = '\0';
 
-                ESP_LOGI(TAG, "Received: %s", msg.text);
+                ESP_LOGI(TAG, "Received (update_id=%" PRId64 "): %s", incoming_update_id, msg.text);
 
                 if (xQueueSend(s_input_queue, &msg, pdMS_TO_TICKS(100)) != pdTRUE) {
                     ESP_LOGW(TAG, "Input queue full");
