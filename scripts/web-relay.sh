@@ -17,14 +17,19 @@ usage() {
     echo "Usage: $0 [PORT] [--kill-monitor] [relay args]"
     echo ""
     echo "Examples:"
-    echo "  $0 --host 0.0.0.0 --port 8787"
-    echo "  $0 /dev/cu.usbmodem1101 --host 0.0.0.0 --port 8787"
-    echo "  $0 --kill-monitor --serial-port /dev/cu.usbmodem1101 --host 0.0.0.0 --port 8787"
-    echo "  $0 --mock-agent --host 0.0.0.0 --port 8787"
+    echo "  $0 --port 8787"
+    echo "  $0 /dev/cu.usbmodem1101 --port 8787"
+    echo "  ZCLAW_WEB_API_KEY='long-random-secret' $0 --host 0.0.0.0 --port 8787"
+    echo "  $0 --kill-monitor --serial-port /dev/cu.usbmodem1101 --port 8787"
+    echo "  $0 --mock-agent --port 8787"
     echo "  $0 --serial-port /dev/cu.usbmodem1101 --log-file /tmp/zclaw-relay.log --log-serial"
     echo ""
     echo "Wrapper-only options:"
     echo "  --kill-monitor   Stop ESP-IDF monitor holders on the selected serial port"
+    echo ""
+    echo "Notes:"
+    echo "  - web_relay.py defaults to --host 127.0.0.1"
+    echo "  - binding non-loopback hosts requires ZCLAW_WEB_API_KEY"
     echo ""
     echo "All other flags are forwarded to scripts/web_relay.py."
 }
@@ -256,12 +261,12 @@ while [ "$#" -gt 0 ]; do
             PORT="${1#*=}"
             shift
             ;;
-        --host|--port|--baud|--serial-timeout|--response-timeout|--idle-timeout|--mock-latency|--log-file)
+        --host|--port|--baud|--serial-timeout|--response-timeout|--idle-timeout|--mock-latency|--log-file|--cors-origin)
             require_value_arg "$1" "${2:-}"
             RELAY_ARGS+=("$1" "$2")
             shift 2
             ;;
-        --host=*|--port=*|--baud=*|--serial-timeout=*|--response-timeout=*|--idle-timeout=*|--mock-latency=*|--log-file=*)
+        --host=*|--port=*|--baud=*|--serial-timeout=*|--response-timeout=*|--idle-timeout=*|--mock-latency=*|--log-file=*|--cors-origin=*)
             RELAY_ARGS+=("$1")
             shift
             ;;

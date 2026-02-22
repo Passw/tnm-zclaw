@@ -50,6 +50,7 @@ class AppState:
     bridge: AgentBridge
     bridge_target: str
     api_key: str | None
+    cors_origin: str | None
 
 
 def normalize_api_key(value: str | None) -> str | None:
@@ -57,6 +58,29 @@ def normalize_api_key(value: str | None) -> str | None:
         return None
     stripped = value.strip()
     return stripped if stripped else None
+
+
+def normalize_origin(value: str | None) -> str | None:
+    if value is None:
+        return None
+    stripped = value.strip()
+    return stripped if stripped else None
+
+
+def is_loopback_host(host: str | None) -> bool:
+    if host is None:
+        return False
+    normalized = host.strip().lower()
+    return normalized in {"127.0.0.1", "localhost", "::1", "[::1]"}
+
+
+def validate_bind_security(host: str, api_key: str | None) -> None:
+    if is_loopback_host(host):
+        return
+    if api_key is None:
+        raise RuntimeError(
+            "ZCLAW_WEB_API_KEY is required when binding the relay to a non-loopback host."
+        )
 
 
 def is_request_authorized(provided_key: str | None, expected_key: str | None) -> bool:
@@ -333,9 +357,14 @@ def make_handler(state: AppState):
             logging.info("%s - %s", self.address_string(), fmt % args)
 
         def do_OPTIONS(self) -> None:  # noqa: N802
+            if not self._is_allowed_cors_origin():
+                self.send_response(HTTPStatus.FORBIDDEN)
+                self._set_common_headers("text/plain; charset=utf-8")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
             self.send_response(HTTPStatus.NO_CONTENT)
             self._set_common_headers("text/plain; charset=utf-8")
-            self.send_header("Access-Control-Allow-Origin", "*")
             self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type,X-Zclaw-Key")
             self.end_headers()
@@ -453,7 +482,22 @@ def make_handler(state: AppState):
         def _set_common_headers(self, content_type: str) -> None:
             self.send_header("Content-Type", content_type)
             self.send_header("Cache-Control", "no-store")
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self._set_cors_headers()
+
+        def _set_cors_headers(self) -> None:
+            origin = self.headers.get("Origin")
+            if state.cors_origin is None or origin is None:
+                return
+            if origin != state.cors_origin:
+                return
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+
+        def _is_allowed_cors_origin(self) -> bool:
+            if state.cors_origin is None:
+                return False
+            origin = self.headers.get("Origin")
+            return origin == state.cors_origin
 
         def _send_json(self, status: HTTPStatus, payload: dict) -> None:
             encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
@@ -920,8 +964,18 @@ INDEX_HTML = """<!doctype html>
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="zclaw hosted web relay")
-    parser.add_argument("--host", default="0.0.0.0", help="HTTP listen host (default: 0.0.0.0)")
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="HTTP listen host (default: 127.0.0.1)"
+    )
     parser.add_argument("--port", type=int, default=8787, help="HTTP listen port (default: 8787)")
+    parser.add_argument(
+        "--cors-origin",
+        default=None,
+        help=(
+            "Optional exact CORS origin to allow (default: disabled). "
+            "Example: http://localhost:5173"
+        ),
+    )
     parser.add_argument("--serial-port", default=None, help="Serial port for device mode")
     parser.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200)")
     parser.add_argument(
@@ -969,10 +1023,17 @@ def parse_args() -> argparse.Namespace:
 
 def run_server(args: argparse.Namespace) -> int:
     api_key = normalize_api_key(os.environ.get("ZCLAW_WEB_API_KEY"))
+    cors_origin = normalize_origin(args.cors_origin or os.environ.get("ZCLAW_WEB_CORS_ORIGIN"))
+    validate_bind_security(args.host, api_key)
     bridge, bridge_target = create_agent_bridge(args)
     bridge.open()
 
-    state = AppState(bridge=bridge, bridge_target=bridge_target, api_key=api_key)
+    state = AppState(
+        bridge=bridge,
+        bridge_target=bridge_target,
+        api_key=api_key,
+        cors_origin=cors_origin,
+    )
     handler = make_handler(state)
     httpd = ThreadingHTTPServer((args.host, args.port), handler)
 
@@ -983,6 +1044,10 @@ def run_server(args: argparse.Namespace) -> int:
         bridge_target,
         "set" if api_key else "unset",
     )
+    if cors_origin:
+        logging.info("CORS enabled for origin: %s", cors_origin)
+    else:
+        logging.info("CORS disabled")
 
     try:
         httpd.serve_forever()
