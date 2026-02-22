@@ -225,7 +225,7 @@ bash &lt;(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bo
 
         <p>Important setup notes:</p>
         <ul>
-          <li><code>bootstrap.sh</code> clones/updates the repo and then runs <code>./install.sh</code>.</li>
+          <li><code>bootstrap.sh</code> clones/updates the repo and then runs <code>./install.sh</code>. You can inspect/verify the bootstrap flow first (including <code>ZCLAW_BOOTSTRAP_SHA256</code> integrity checks); see <a href="getting-started.html">Getting Started</a>.</li>
           <li>For encrypted credentials in flash, use secure mode (<code>--flash-mode secure</code> in install flow, or <code>./scripts/flash-secure.sh</code> directly).</li>
           <li>After flashing, provision WiFi + LLM credentials with <code>./scripts/provision.sh</code>.</li>
           <li>Telegram control commands: <code>/start</code> and <code>/help</code> show help, <code>/settings</code> shows bot status, <code>/stop</code> pauses message intake, <code>/resume</code> re-enables message intake.</li>
