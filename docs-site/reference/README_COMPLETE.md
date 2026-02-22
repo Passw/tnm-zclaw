@@ -72,6 +72,13 @@ This should generally work. If it does not, open an issue with details.
 bash <(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bootstrap.sh)
 ```
 
+Optional checksum-verified bootstrap (same flow, with expected hash):
+
+```bash
+ZCLAW_BOOTSTRAP_SHA256="<sha256-from-release-notes>" \
+bash <(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bootstrap.sh)
+```
+
 This bootstrap script clones/updates zclaw and then runs `./install.sh`. Works on macOS and Linux.
 
 It also points you to flash helpers that auto-detect serial port/chip and can switch `idf.py` target on mismatch.

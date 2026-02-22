@@ -52,6 +52,10 @@
         <section class="section">
           <h2>One-Line Bootstrap</h2>
           <pre>bash &lt;(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bootstrap.sh)</pre>
+          <p>Optional checksum-verified bootstrap (same flow):</p>
+          <pre>ZCLAW_BOOTSTRAP_SHA256="&lt;sha256-from-release-notes&gt;" \
+bash &lt;(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bootstrap.sh)</pre>
+          <p class="inline-note">Integrity check: when <code>ZCLAW_BOOTSTRAP_SHA256</code> (or <code>--sha256</code>) is set, <code>bootstrap.sh</code> hashes its own downloaded contents with SHA-256 and compares to your expected value before it clones/updates or runs <code>./install.sh</code>. Any mismatch exits immediately.</p>
           <p>Bootstrap clones or updates the repo, then runs <code>./install.sh</code>.</p>
           <ul>
             <li>Installer remembers answers in <code>~/.config/zclaw/install.env</code> (disable with <code>--no-remember</code>).</li>
