@@ -368,6 +368,61 @@ static void telegram_send_task(void *arg)
     }
 }
 
+static esp_err_t telegram_flush_pending_updates(void)
+{
+#if TELEGRAM_FLUSH_ON_START
+    char url[384];
+    telegram_http_ctx_t *ctx = NULL;
+    esp_http_client_handle_t client = NULL;
+    esp_err_t err;
+    int status;
+
+    snprintf(url, sizeof(url), "%s%s/getUpdates?timeout=0&limit=1&offset=-1",
+             TELEGRAM_API_URL, s_bot_token);
+
+    ctx = calloc(1, sizeof(*ctx));
+    if (!ctx) {
+        return ESP_ERR_NO_MEM;
+    }
+
+    esp_http_client_config_t config = {
+        .url = url,
+        .event_handler = http_event_handler,
+        .user_data = ctx,
+        .timeout_ms = HTTP_TIMEOUT_MS,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+    };
+
+    client = esp_http_client_init(&config);
+    if (!client) {
+        free(ctx);
+        return ESP_FAIL;
+    }
+
+    err = esp_http_client_perform(client);
+    status = esp_http_client_get_status_code(client);
+    esp_http_client_cleanup(client);
+    client = NULL;
+
+    if (err != ESP_OK || status != 200) {
+        ESP_LOGW(TAG, "Flush getUpdates failed: err=%d status=%d", err, status);
+        free(ctx);
+        return ESP_FAIL;
+    }
+
+    int64_t latest_update_id = 0;
+    if (telegram_extract_max_update_id(ctx->buf, &latest_update_id)) {
+        s_last_update_id = latest_update_id;
+        ESP_LOGI(TAG, "Flushed pending updates up to update_id=%" PRId64, s_last_update_id);
+    } else {
+        ESP_LOGI(TAG, "No pending Telegram updates to flush");
+    }
+
+    free(ctx);
+#endif
+    return ESP_OK;
+}
+
 // Calculate exponential backoff delay
 static int get_backoff_delay_ms(void)
 {
@@ -427,6 +482,12 @@ esp_err_t telegram_start(QueueHandle_t input_queue, QueueHandle_t output_queue)
 
     s_input_queue = input_queue;
     s_output_queue = output_queue;
+
+    // Sync to the latest pending update to avoid replaying stale backlog on reboot.
+    esp_err_t flush_err = telegram_flush_pending_updates();
+    if (flush_err != ESP_OK) {
+        ESP_LOGW(TAG, "Proceeding without startup flush; pending updates may replay");
+    }
 
     TaskHandle_t poll_task = NULL;
     if (xTaskCreate(telegram_poll_task, "tg_poll", CHANNEL_TASK_STACK_SIZE, NULL,
