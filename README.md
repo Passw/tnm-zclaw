@@ -22,6 +22,9 @@ Fun to use, fun to hack on.
 Use the docs site for complete guides and reference.
 
 - [Full documentation](https://zclaw.dev)
+- [Use cases: useful + fun](https://zclaw.dev/use-cases.html)
+- [Changelog (web)](https://zclaw.dev/changelog.html)
+- [Changelog (repo)](./CHANGELOG.md)
 - [README (web)](https://zclaw.dev/README.html)
 - [Complete README (verbatim)](https://zclaw.dev/reference/README_COMPLETE.md)
 

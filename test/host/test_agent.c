@@ -427,6 +427,7 @@ TEST(persona_can_change_via_llm_tool_call)
 
     last_request = mock_llm_last_request_json();
     ASSERT(last_request != NULL);
+    ASSERT(strstr(last_request, "Device target is") != NULL);
     ASSERT(strstr(last_request, "Persona mode is 'friendly'") != NULL);
 
     vQueueDelete(channel_q);

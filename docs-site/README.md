@@ -20,5 +20,7 @@ Custom static docs site with a print-book visual style inspired by classic C ref
 - `security.html` - security and ops
 - `build-your-own-tool.html` - custom tool design and maintenance workflow
 - `local-dev.html` - local dev, provisioning profiles, and hacking loops
+- `use-cases.html` - useful and playful scenarios for on-device assistants
+- `changelog.html` - release history and upgrade notes
 - `styles.css` - visual system and responsive layout
 - `app.js` - sidebar/nav behavior

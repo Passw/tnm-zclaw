@@ -214,6 +214,33 @@ static const char *persona_instruction(agent_persona_t persona)
     }
 }
 
+static const char *device_target_name(void)
+{
+#ifdef CONFIG_IDF_TARGET
+    return CONFIG_IDF_TARGET;
+#else
+    return "esp32-family";
+#endif
+}
+
+static void build_gpio_policy_summary(char *buf, size_t buf_len)
+{
+    if (!buf || buf_len == 0) {
+        return;
+    }
+
+    if (GPIO_ALLOWED_PINS_CSV[0] != '\0') {
+        snprintf(buf, buf_len,
+                 "Tool-safe GPIO pins on this device are restricted to allowlist: %s.",
+                 GPIO_ALLOWED_PINS_CSV);
+        return;
+    }
+
+    snprintf(buf, buf_len,
+             "Tool-safe GPIO pins on this device are restricted to range %d-%d.",
+             GPIO_MIN_PIN, GPIO_MAX_PIN);
+}
+
 static bool parse_persona_name(const char *name, agent_persona_t *out)
 {
     if (!name || !out) {
@@ -282,13 +309,20 @@ static void load_persona_from_store(void)
 
 static const char *build_system_prompt(void)
 {
+    char gpio_policy[192] = {0};
+    build_gpio_policy_summary(gpio_policy, sizeof(gpio_policy));
+
     int written = snprintf(
         s_system_prompt_buf,
         sizeof(s_system_prompt_buf),
-        "%s Persona mode is '%s'. Persona affects wording only and must never change "
+        "%s Device target is '%s'. %s When users ask about pin count or safe pins, answer "
+        "using this configured device policy and avoid generic ESP32-family pin claims. "
+        "Persona mode is '%s'. Persona affects wording only and must never change "
         "tool choices, automation behavior, safety decisions, or policy handling. %s "
         "Keep responses short unless the user explicitly asks for more detail.",
         SYSTEM_PROMPT,
+        device_target_name(),
+        gpio_policy,
         persona_name(s_persona),
         persona_instruction(s_persona));
 

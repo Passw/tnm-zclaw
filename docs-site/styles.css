@@ -180,6 +180,8 @@ body {
 .chapter-list li:nth-child(5) { animation-delay: 330ms; }
 .chapter-list li:nth-child(6) { animation-delay: 390ms; }
 .chapter-list li:nth-child(7) { animation-delay: 450ms; }
+.chapter-list li:nth-child(8) { animation-delay: 510ms; }
+.chapter-list li:nth-child(9) { animation-delay: 570ms; }
 
 :root[data-theme="kr"] .chapter-list li {
   opacity: 1;
