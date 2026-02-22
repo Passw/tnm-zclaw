@@ -15,6 +15,7 @@ TEST_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = TEST_DIR.parent.parent
 INSTALL_SH = PROJECT_ROOT / "install.sh"
 PROVISION_SH = PROJECT_ROOT / "scripts" / "provision.sh"
+PROVISION_DEV_SH = PROJECT_ROOT / "scripts" / "provision-dev.sh"
 ERASE_SH = PROJECT_ROOT / "scripts" / "erase.sh"
 
 
@@ -385,6 +386,178 @@ LAST_PORT=
         self.assertIn("-p", args_text)
         self.assertIn(str(fake_port), args_text)
         self.assertIn("erase-flash", args_text)
+
+    def test_provision_dev_write_template_creates_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            env_file = tmp / "dev.env"
+            proc = subprocess.run(
+                [
+                    str(PROVISION_DEV_SH),
+                    "--env-file",
+                    str(env_file),
+                    "--write-template",
+                ],
+                cwd=PROJECT_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            output = f"{proc.stdout}\n{proc.stderr}"
+            self.assertEqual(proc.returncode, 0, msg=output)
+            self.assertTrue(env_file.exists(), msg=output)
+            content = env_file.read_text(encoding="utf-8")
+            self.assertIn("ZCLAW_WIFI_SSID", content)
+            self.assertIn("ZCLAW_API_KEY", content)
+
+    def test_provision_dev_forwards_profile_values(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            env_file = tmp / "dev.env"
+            args_file = tmp / "args.txt"
+            stub = tmp / "mock-provision.sh"
+
+            _write_executable(
+                stub,
+                "#!/bin/sh\n"
+                "printf '%s\\n' \"$@\" > \"$ARGS_FILE\"\n",
+            )
+            env_file.write_text(
+                "\n".join(
+                    [
+                        "ZCLAW_PORT=/dev/cu.usbmodem1101",
+                        "ZCLAW_WIFI_SSID=Trident",
+                        "ZCLAW_WIFI_PASS=Bolinas1001",
+                        "ZCLAW_BACKEND=openai",
+                        "ZCLAW_MODEL=gpt-5.2",
+                        "ZCLAW_API_KEY=sk-test-1234567890",
+                        "ZCLAW_TG_TOKEN=123456789:abcdef",
+                        "ZCLAW_TG_CHAT_ID=7585013353",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            env = os.environ.copy()
+            env["ARGS_FILE"] = str(args_file)
+            env["ZCLAW_PROVISION_SCRIPT"] = str(stub)
+
+            proc = subprocess.run(
+                [
+                    str(PROVISION_DEV_SH),
+                    "--env-file",
+                    str(env_file),
+                    "--show-config",
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            output = f"{proc.stdout}\n{proc.stderr}"
+            self.assertEqual(proc.returncode, 0, msg=output)
+            self.assertTrue(args_file.exists(), msg=output)
+            args_text = args_file.read_text(encoding="utf-8")
+            self.assertIn("--yes", args_text)
+            self.assertIn("--ssid", args_text)
+            self.assertIn("Trident", args_text)
+            self.assertIn("--api-key", args_text)
+            self.assertIn("sk-test-1234567890", args_text)
+            self.assertIn("--tg-token", args_text)
+            self.assertIn("123456789:abcdef", args_text)
+            self.assertIn("Telegram bot ID: 123456789", output)
+            self.assertNotIn("123456789:abcdef", output)
+            self.assertNotIn("sk-test-1234567890", output)
+
+    def test_provision_dev_uses_provider_specific_env_key(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            env_file = tmp / "dev.env"
+            args_file = tmp / "args.txt"
+            stub = tmp / "mock-provision.sh"
+
+            _write_executable(
+                stub,
+                "#!/bin/sh\n"
+                "printf '%s\\n' \"$@\" > \"$ARGS_FILE\"\n",
+            )
+            env_file.write_text(
+                "\n".join(
+                    [
+                        "ZCLAW_WIFI_SSID=Trident",
+                        "ZCLAW_BACKEND=openrouter",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            env = os.environ.copy()
+            env["ARGS_FILE"] = str(args_file)
+            env["ZCLAW_PROVISION_SCRIPT"] = str(stub)
+            env["OPENROUTER_API_KEY"] = "or-sk-test-xyz"
+
+            proc = subprocess.run(
+                [
+                    str(PROVISION_DEV_SH),
+                    "--env-file",
+                    str(env_file),
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            output = f"{proc.stdout}\n{proc.stderr}"
+            self.assertEqual(proc.returncode, 0, msg=output)
+            args_text = args_file.read_text(encoding="utf-8")
+            self.assertIn("--backend", args_text)
+            self.assertIn("openrouter", args_text)
+            self.assertIn("--api-key", args_text)
+            self.assertIn("or-sk-test-xyz", args_text)
+
+    def test_provision_dev_errors_when_key_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            env_file = tmp / "dev.env"
+            env_file.write_text(
+                "\n".join(
+                    [
+                        "ZCLAW_WIFI_SSID=Trident",
+                        "ZCLAW_BACKEND=openai",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            env = os.environ.copy()
+            env.pop("OPENAI_API_KEY", None)
+            env.pop("ANTHROPIC_API_KEY", None)
+            env.pop("OPENROUTER_API_KEY", None)
+            env.pop("ZCLAW_API_KEY", None)
+
+            proc = subprocess.run(
+                [
+                    str(PROVISION_DEV_SH),
+                    "--env-file",
+                    str(env_file),
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertNotEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Error: API key not set.", output)
 
 
 if __name__ == "__main__":

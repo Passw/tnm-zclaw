@@ -300,6 +300,7 @@ Or use the convenience scripts:
 ./scripts/flash-secure.sh   # Flash with encryption (dev mode, key readable)
 ./scripts/flash-secure.sh --production  # Flash with key read-protected
 ./scripts/provision.sh      # Provision WiFi/API credentials into NVS
+./scripts/provision-dev.sh  # Local profile wrapper for repeat non-interactive provisioning
 ./scripts/erase.sh --nvs    # Erase only credentials/settings
 ./scripts/erase.sh --all    # Full flash wipe (firmware + settings)
 ./scripts/monitor.sh        # Serial monitor
@@ -328,6 +329,8 @@ Or use the convenience scripts:
 `provision.sh` auto-detects your host WiFi SSID when possible.
 For Anthropic, it also sends a quick `hello` API check after key entry.
 Use `--skip-api-check` to bypass verification.
+
+For local iteration, `provision-dev.sh` loads values from `~/.config/zclaw/dev.env` so you do not need to re-enter WiFi/API/Telegram details every run.
 
 Reset options:
 - `./scripts/erase.sh --nvs --port <serial-port>` to wipe stored credentials/settings only.
@@ -405,6 +408,7 @@ zclaw/
 │   ├── flash.sh        # Flash to device
 │   ├── flash-secure.sh # Flash with encryption
 │   ├── provision.sh    # Provision credentials to NVS
+│   ├── provision-dev.sh # Local profile wrapper for reprovision
 │   ├── erase.sh        # Erase NVS or full flash with guardrails
 │   ├── monitor.sh      # Serial monitor
 │   ├── release-port.sh # Release busy serial port holders

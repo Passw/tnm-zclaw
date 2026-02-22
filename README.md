@@ -54,6 +54,7 @@ Important setup notes:
 - Telegram control commands: `/start` and `/help` show command help, `/settings` shows bot status, `/stop` pauses message intake, `/resume` re-enables message intake.
 - Quick validation path: run `./scripts/web-relay.sh` and send a test message to confirm the device can answer.
 - If serial port is busy, run `./scripts/release-port.sh` and retry.
+- For repeat local reprovisioning without retyping secrets, use `./scripts/provision-dev.sh` with a local profile file.
 - To reset stored credentials/settings only, run `./scripts/erase.sh --nvs`.
 - To fully factory wipe firmware + settings, run `./scripts/erase.sh --all` (explicit confirmation required).
 - Full setup/provisioning details are in the docs site index.
@@ -81,6 +82,7 @@ Recommended starter board: [Seeed XIAO ESP32-C3](https://www.seeedstudio.com/See
 - `./scripts/flash.sh` - Flash firmware
 - `./scripts/flash-secure.sh` - Flash with encryption
 - `./scripts/provision.sh` - Provision credentials to NVS
+- `./scripts/provision-dev.sh` - Local profile wrapper for fast repeat provisioning (`~/.config/zclaw/dev.env`)
 - `./scripts/erase.sh` - Erase NVS only (`--nvs`) or full flash (`--all`) with guardrails
 - `./scripts/monitor.sh` - Serial monitor
 - `./scripts/emulate.sh` - Run QEMU profile

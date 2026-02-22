@@ -87,6 +87,17 @@ bash &lt;(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bo
         </section>
 
         <section class="section">
+          <h2>Fast Re-Provision (Local Dev)</h2>
+          <pre># One-time: create local profile template
+./scripts/provision-dev.sh --write-template
+
+# Edit ~/.config/zclaw/dev.env once, then:
+./scripts/provision-dev.sh --show-config
+./scripts/provision-dev.sh</pre>
+          <p class="inline-note">This keeps your WiFi/API/Telegram values in a local profile for repeat dev flashes. Output is redacted; only Telegram bot ID is shown as a safe identifier.</p>
+        </section>
+
+        <section class="section">
           <h2>Telegram Path</h2>
           <ol>
             <li>Create bot via <a href="https://t.me/botfather">@BotFather</a>.</li>
