@@ -364,6 +364,9 @@ static bool wifi_connect_sta(void)
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
     ESP_ERROR_CHECK(esp_wifi_start());
+    // Favor link stability for HTTPS-heavy workloads over power savings.
+    ESP_ERROR_CHECK(esp_wifi_set_ps(WIFI_PS_NONE));
+    ESP_LOGI(TAG, "WiFi power save disabled");
 
     log_target_ap_scan(ssid);
     ESP_LOGI(TAG, "Connecting to %s...", ssid);

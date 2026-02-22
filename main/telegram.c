@@ -13,6 +13,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "esp_timer.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,13 +36,54 @@ static int s_consecutive_failures = 0;
 #define BACKOFF_MAX_MS      300000  // 5 minutes
 #define BACKOFF_MULTIPLIER  2
 #define TELEGRAM_ACTION_TIMEOUT_MS 5000
+#define TELEGRAM_TYPING_DEBOUNCE_MS 4000
 #define TELEGRAM_POLL_TASK_STACK_SIZE 8192
+
+static int64_t s_last_typing_sent_us = 0;
 
 typedef struct {
     char buf[4096];
     size_t len;
     bool truncated;
 } telegram_http_ctx_t;
+
+static const char *http_transport_name(esp_http_client_transport_t transport)
+{
+    switch (transport) {
+        case HTTP_TRANSPORT_OVER_TCP:
+            return "tcp";
+        case HTTP_TRANSPORT_OVER_SSL:
+            return "ssl";
+        default:
+            return "unknown";
+    }
+}
+
+static void log_http_failure(const char *operation,
+                             esp_http_client_handle_t client,
+                             esp_err_t err,
+                             int status)
+{
+    int sock_errno = 0;
+    esp_http_client_transport_t transport = HTTP_TRANSPORT_UNKNOWN;
+
+    if (client) {
+        sock_errno = esp_http_client_get_errno(client);
+        if (status < 0) {
+            status = esp_http_client_get_status_code(client);
+        }
+        transport = esp_http_client_get_transport_type(client);
+    }
+
+    ESP_LOGW(TAG,
+             "%s failed: err=%s(%d) status=%d errno=%d(%s) transport=%s",
+             operation ? operation : "HTTP request",
+             esp_err_to_name(err), err,
+             status,
+             sock_errno,
+             sock_errno ? strerror(sock_errno) : "n/a",
+             http_transport_name(transport));
+}
 
 static bool format_int64_decimal(int64_t value, char *out, size_t out_len)
 {
@@ -249,15 +291,29 @@ static void telegram_send_typing_indicator(void)
     if (err == ESP_OK) {
         status = esp_http_client_get_status_code(client);
         if (status != 200) {
-            ESP_LOGW(TAG, "sendChatAction failed: %d", status);
+            log_http_failure("sendChatAction", client, ESP_FAIL, status);
         }
     } else {
-        ESP_LOGD(TAG, "sendChatAction request failed: %s", esp_err_to_name(err));
+        log_http_failure("sendChatAction", client, err, -1);
     }
 
     esp_http_client_cleanup(client);
     free(body);
     free(ctx);
+}
+
+static void telegram_queue_typing_indicator(void)
+{
+    telegram_msg_t msg = {0};
+
+    if (!s_output_queue) {
+        return;
+    }
+
+    msg.kind = TELEGRAM_MSG_TYPING;
+    if (xQueueSend(s_output_queue, &msg, 0) != pdTRUE) {
+        ESP_LOGD(TAG, "Skipping typing indicator: output queue full");
+    }
 }
 
 esp_err_t telegram_send(const char *text)
@@ -322,7 +378,7 @@ esp_err_t telegram_send(const char *text)
     if (err == ESP_OK) {
         int status = esp_http_client_get_status_code(client);
         if (status != 200) {
-            ESP_LOGE(TAG, "sendMessage failed: %d", status);
+            log_http_failure("sendMessage", client, ESP_FAIL, status);
             if (ctx->buf[0] != '\0') {
                 ESP_LOGE(TAG, "sendMessage response: %s", ctx->buf);
             }
@@ -388,14 +444,16 @@ static esp_err_t telegram_poll(void)
 
     err = esp_http_client_perform(client);
     status = esp_http_client_get_status_code(client);
-    esp_http_client_cleanup(client);
-    client = NULL;
 
     if (err != ESP_OK || status != 200) {
-        ESP_LOGE(TAG, "getUpdates failed: err=%d status=%d", err, status);
+        log_http_failure("getUpdates", client, err, status);
+        esp_http_client_cleanup(client);
         free(ctx);
         return ESP_FAIL;
     }
+
+    esp_http_client_cleanup(client);
+    client = NULL;
 
     if (ctx->truncated) {
         int64_t recovered_update_id = 0;
@@ -521,8 +579,8 @@ static esp_err_t telegram_poll(void)
                 if (xQueueSend(s_input_queue, &msg, pdMS_TO_TICKS(100)) != pdTRUE) {
                     ESP_LOGW(TAG, "Input queue full");
                 } else {
-                    // Give chat clients immediate "working..." feedback for slow requests.
-                    telegram_send_typing_indicator();
+                    // Queue async "working..." feedback without blocking poll loop.
+                    telegram_queue_typing_indicator();
                 }
             }
         }
@@ -539,9 +597,31 @@ static void telegram_send_task(void *arg)
     (void)arg;
     while (1) {
         if (xQueueReceive(s_output_queue, &s_send_msg, portMAX_DELAY) == pdTRUE) {
-            if (telegram_is_configured() && s_chat_id != 0) {
-                telegram_send(s_send_msg.text);
+            if (!telegram_is_configured() || s_chat_id == 0) {
+                continue;
             }
+
+            if (s_send_msg.kind == TELEGRAM_MSG_TYPING) {
+                int64_t now_us = esp_timer_get_time();
+                if (s_last_typing_sent_us > 0 && now_us > s_last_typing_sent_us) {
+                    uint64_t since_last_ms =
+                        (uint64_t)(now_us - s_last_typing_sent_us) / 1000ULL;
+                    if (since_last_ms < TELEGRAM_TYPING_DEBOUNCE_MS) {
+                        continue;
+                    }
+                }
+
+                s_last_typing_sent_us = now_us;
+                telegram_send_typing_indicator();
+                continue;
+            }
+
+            if (s_send_msg.kind == TELEGRAM_MSG_TEXT) {
+                telegram_send(s_send_msg.text);
+                continue;
+            }
+
+            ESP_LOGW(TAG, "Ignoring unknown telegram queue message type=%d", (int)s_send_msg.kind);
         }
     }
 }
@@ -579,14 +659,16 @@ static esp_err_t telegram_flush_pending_updates(void)
 
     err = esp_http_client_perform(client);
     status = esp_http_client_get_status_code(client);
-    esp_http_client_cleanup(client);
-    client = NULL;
 
     if (err != ESP_OK || status != 200) {
-        ESP_LOGW(TAG, "Flush getUpdates failed: err=%d status=%d", err, status);
+        log_http_failure("flush getUpdates", client, err, status);
+        esp_http_client_cleanup(client);
         free(ctx);
         return ESP_FAIL;
     }
+
+    esp_http_client_cleanup(client);
+    client = NULL;
 
     int64_t latest_update_id = 0;
     if (telegram_extract_max_update_id(ctx->buf, &latest_update_id)) {

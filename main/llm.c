@@ -33,6 +33,40 @@ typedef struct {
     bool truncated;
 } http_response_ctx_t;
 
+static const char *http_transport_name(esp_http_client_transport_t transport)
+{
+    switch (transport) {
+        case HTTP_TRANSPORT_OVER_TCP:
+            return "tcp";
+        case HTTP_TRANSPORT_OVER_SSL:
+            return "ssl";
+        default:
+            return "unknown";
+    }
+}
+
+static void log_http_failure(const char *operation, esp_http_client_handle_t client, esp_err_t err)
+{
+    int status = -1;
+    int sock_errno = 0;
+    esp_http_client_transport_t transport = HTTP_TRANSPORT_UNKNOWN;
+
+    if (client) {
+        status = esp_http_client_get_status_code(client);
+        sock_errno = esp_http_client_get_errno(client);
+        transport = esp_http_client_get_transport_type(client);
+    }
+
+    ESP_LOGE(TAG,
+             "%s failed: err=%s(%d) status=%d errno=%d(%s) transport=%s",
+             operation ? operation : "HTTP request",
+             esp_err_to_name(err), err,
+             status,
+             sock_errno,
+             sock_errno ? strerror(sock_errno) : "n/a",
+             http_transport_name(transport));
+}
+
 // HTTP event handler
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 {
@@ -46,6 +80,16 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
                 if (!ok && !ctx->truncated) {
                     ctx->truncated = true;
                     ESP_LOGW(TAG, "LLM response truncated at %d bytes", (int)(ctx->max - 1));
+                }
+            }
+            break;
+        case HTTP_EVENT_ERROR:
+        case HTTP_EVENT_DISCONNECTED:
+            if (evt && evt->client) {
+                int sock_errno = esp_http_client_get_errno(evt->client);
+                if (sock_errno != 0) {
+                    ESP_LOGD(TAG, "HTTP event=%d errno=%d(%s)",
+                             evt->event_id, sock_errno, strerror(sock_errno));
                 }
             }
             break;
@@ -285,13 +329,14 @@ esp_err_t llm_request(const char *request_json, char *response_buf, size_t respo
 
         if (status != 200) {
             ESP_LOGE(TAG, "API error: %s", response_buf);
+            log_http_failure("LLM request", client, ESP_FAIL);
             err = ESP_FAIL;
         } else if (ctx.truncated) {
             ESP_LOGE(TAG, "LLM response truncated");
             err = ESP_ERR_NO_MEM;
         }
     } else {
-        ESP_LOGE(TAG, "HTTP request failed: %s", esp_err_to_name(err));
+        log_http_failure("LLM request", client, err);
     }
 
     esp_http_client_cleanup(client);
