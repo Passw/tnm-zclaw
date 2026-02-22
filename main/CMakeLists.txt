@@ -15,6 +15,7 @@ idf_component_register(
         "memory.c"
         "json_util.c"
         "telegram.c"
+        "telegram_token.c"
         "cron.c"
         "memory_keys.c"
         "telegram_update.c"

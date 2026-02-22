@@ -3,6 +3,7 @@
 #include "messages.h"
 #include "memory.h"
 #include "nvs_keys.h"
+#include "telegram_token.h"
 #include "telegram_update.h"
 #include "text_buffer.h"
 #include "esp_http_client.h"
@@ -96,10 +97,18 @@ static esp_err_t http_event_handler(esp_http_client_event_t *evt)
 
 esp_err_t telegram_init(void)
 {
+    char bot_id[24];
+
     // Load bot token from NVS
     if (!memory_get(NVS_KEY_TG_TOKEN, s_bot_token, sizeof(s_bot_token))) {
         ESP_LOGW(TAG, "No Telegram token configured");
         return ESP_ERR_NOT_FOUND;
+    }
+
+    if (telegram_extract_bot_id(s_bot_token, bot_id, sizeof(bot_id))) {
+        ESP_LOGI(TAG, "Loaded bot ID: %s (safe identifier; token remains secret)", bot_id);
+    } else {
+        ESP_LOGW(TAG, "Telegram token format invalid (bot ID unavailable)");
     }
 
     // Load last known chat ID (optional)
