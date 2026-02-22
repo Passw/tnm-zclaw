@@ -7,7 +7,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [Unreleased]
 
 ### Changed
-- _None yet._
+- Fixed debounce replay log milliseconds formatting in agent suppression logs.
 
 ## [2.5.3] - 2026-02-22
 
