@@ -24,8 +24,6 @@ Use the docs site for complete guides and reference.
 - [Full documentation](https://zclaw.dev)
 - [Use cases: useful + fun](https://zclaw.dev/use-cases.html)
 - [Changelog (web)](https://zclaw.dev/changelog.html)
-- [Changelog (repo)](./CHANGELOG.md)
-- [README (web)](https://zclaw.dev/README.html)
 - [Complete README (verbatim)](https://zclaw.dev/reference/README_COMPLETE.md)
 
 
@@ -69,6 +67,7 @@ Non-interactive install:
 - Built-in + user-defined tools
 - GPIO read/write control with guardrails
 - Persistent memory across reboots
+- Persona options: `neutral`, `friendly`, `technical`, `witty`
 - Provider support for Anthropic, OpenAI, and OpenRouter
 
 ## Hardware
