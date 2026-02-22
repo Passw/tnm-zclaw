@@ -106,6 +106,7 @@
           <ul>
             <li>If serial operations fail with busy port, stop monitor/relay or run <code>./scripts/release-port.sh</code>.</li>
             <li>If Telegram behaves oddly, verify startup logs for <code>Loaded bot ID: ... (safe identifier)</code> and chat ID.</li>
+            <li>If Telegram keeps replaying stale messages, run <code>./scripts/telegram-clear-backlog.sh --show-config</code> once.</li>
             <li>If you changed only runtime credentials, skip rebuild/flash and run <code>./scripts/provision-dev.sh</code> directly.</li>
             <li>Use <code>./scripts/provision-dev.sh --show-config --dry-run</code> before scripted runs to inspect resolved values safely.</li>
           </ul>

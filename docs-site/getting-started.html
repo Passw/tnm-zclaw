@@ -107,6 +107,7 @@ bash &lt;(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bo
           </ol>
           <p>Runtime accepts messages only from the configured chat ID.</p>
           <p class="inline-note">Telegram control commands: <code>/start</code>/<code>/help</code> (help), <code>/settings</code> (status), <code>/stop</code> (pause message intake), <code>/resume</code> (resume message intake).</p>
+          <p class="inline-note">If old queued messages keep replaying during local dev, run <code>./scripts/telegram-clear-backlog.sh --show-config</code> once on your host.</p>
         </section>
 
         <section class="section">

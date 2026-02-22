@@ -16,6 +16,7 @@ PROJECT_ROOT = TEST_DIR.parent.parent
 INSTALL_SH = PROJECT_ROOT / "install.sh"
 PROVISION_SH = PROJECT_ROOT / "scripts" / "provision.sh"
 PROVISION_DEV_SH = PROJECT_ROOT / "scripts" / "provision-dev.sh"
+TELEGRAM_CLEAR_SH = PROJECT_ROOT / "scripts" / "telegram-clear-backlog.sh"
 ERASE_SH = PROJECT_ROOT / "scripts" / "erase.sh"
 
 
@@ -558,6 +559,127 @@ LAST_PORT=
         output = f"{proc.stdout}\n{proc.stderr}"
         self.assertNotEqual(proc.returncode, 0, msg=output)
         self.assertIn("Error: API key not set.", output)
+
+    def test_telegram_clear_backlog_errors_without_token(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            env_file = tmp / "dev.env"
+            env_file.write_text("# no token\n", encoding="utf-8")
+
+            env = os.environ.copy()
+            env.pop("ZCLAW_TG_TOKEN", None)
+
+            proc = subprocess.run(
+                [
+                    str(TELEGRAM_CLEAR_SH),
+                    "--env-file",
+                    str(env_file),
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertNotEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Error: Telegram token not set.", output)
+
+    def test_telegram_clear_backlog_uses_profile_token_and_advances_offset(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            env_file = tmp / "dev.env"
+            env_file.write_text(
+                "ZCLAW_TG_TOKEN=123456789:abcdef\n",
+                encoding="utf-8",
+            )
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            _write_executable(
+                bin_dir / "curl",
+                "#!/bin/sh\n"
+                "out=''\n"
+                "fmt=''\n"
+                "url=''\n"
+                "while [ $# -gt 0 ]; do\n"
+                "  case \"$1\" in\n"
+                "    -o) out=\"$2\"; shift 2 ;;\n"
+                "    -w) fmt=\"$2\"; shift 2 ;;\n"
+                "    --connect-timeout|--max-time) shift 2 ;;\n"
+                "    -s|-S|-sS) shift ;;\n"
+                "    *) url=\"$1\"; shift ;;\n"
+                "  esac\n"
+                "done\n"
+                "printf '%s\\n' \"$url\" >> \"$CURL_URLS_FILE\"\n"
+                "code='200'\n"
+                "if echo \"$url\" | grep -q 'offset=-1'; then\n"
+                "  body='{\"ok\":true,\"result\":[{\"update_id\":4242}]}'\n"
+                "elif echo \"$url\" | grep -q 'offset=4243'; then\n"
+                "  body='{\"ok\":true,\"result\":[]}'\n"
+                "else\n"
+                "  code='400'\n"
+                "  body='{\"ok\":false,\"error_code\":400,\"description\":\"bad offset\"}'\n"
+                "fi\n"
+                "if [ -n \"$out\" ]; then\n"
+                "  printf '%s' \"$body\" > \"$out\"\n"
+                "fi\n"
+                "if [ -n \"$fmt\" ]; then\n"
+                "  printf '%s' \"$code\"\n"
+                "else\n"
+                "  printf '%s' \"$body\"\n"
+                "fi\n",
+            )
+
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}:/usr/bin:/bin"
+            env["CURL_URLS_FILE"] = str(tmp / "urls.txt")
+            env.pop("ZCLAW_TG_TOKEN", None)
+
+            proc = subprocess.run(
+                [
+                    str(TELEGRAM_CLEAR_SH),
+                    "--env-file",
+                    str(env_file),
+                    "--show-config",
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            urls = (tmp / "urls.txt").read_text(encoding="utf-8")
+
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Cleared Telegram backlog up to update_id=4242", output)
+        self.assertIn("Bot ID: 123456789", output)
+        self.assertNotIn("123456789:abcdef", output)
+        self.assertIn("offset=-1", urls)
+        self.assertIn("offset=4243", urls)
+
+    def test_telegram_clear_backlog_dry_run(self) -> None:
+        proc = subprocess.run(
+            [
+                str(TELEGRAM_CLEAR_SH),
+                "--token",
+                "123456789:abcdef",
+                "--dry-run",
+            ],
+            cwd=PROJECT_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Dry run requests:", output)
+        self.assertIn("offset=-1", output)
+        self.assertIn("offset=<latest+1>", output)
 
 
 if __name__ == "__main__":

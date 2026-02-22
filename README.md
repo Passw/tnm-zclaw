@@ -95,6 +95,9 @@ Profile setup once, then re-use:
 # edit ~/.config/zclaw/dev.env
 ./scripts/provision-dev.sh --show-config
 ./scripts/provision-dev.sh
+
+# if Telegram keeps replaying stale updates:
+./scripts/telegram-clear-backlog.sh --show-config
 ```
 
 More details in the [Local Dev & Hacking guide](https://zclaw.dev/local-dev.html).
@@ -103,6 +106,8 @@ More details in the [Local Dev & Hacking guide](https://zclaw.dev/local-dev.html
 
 - `./scripts/flash-secure.sh` - Flash with encryption
 - `./scripts/provision.sh` - Provision credentials to NVS
+- `./scripts/provision-dev.sh` - Local profile wrapper for repeat provisioning
+- `./scripts/telegram-clear-backlog.sh` - Clear queued Telegram updates
 - `./scripts/erase.sh` - Erase NVS only (`--nvs`) or full flash (`--all`) with guardrails
 - `./scripts/monitor.sh` - Serial monitor
 - `./scripts/emulate.sh` - Run QEMU profile

@@ -301,6 +301,7 @@ Or use the convenience scripts:
 ./scripts/flash-secure.sh --production  # Flash with key read-protected
 ./scripts/provision.sh      # Provision WiFi/API credentials into NVS
 ./scripts/provision-dev.sh  # Local profile wrapper for repeat non-interactive provisioning
+./scripts/telegram-clear-backlog.sh  # Clear queued Telegram updates for current token
 ./scripts/erase.sh --nvs    # Erase only credentials/settings
 ./scripts/erase.sh --all    # Full flash wipe (firmware + settings)
 ./scripts/monitor.sh        # Serial monitor
