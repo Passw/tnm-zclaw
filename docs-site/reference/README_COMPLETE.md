@@ -62,6 +62,17 @@ Good choice: [Seeed XIAO ESP32-C3](https://www.seeedstudio.com/Seeed-XIAO-ESP32C
 
 Other options: ESP32-DevKitM, Adafruit QT Py, any generic ESP32 module.
 
+ESP32-S3-BOX-3 preset:
+
+```bash
+./scripts/build.sh --box-3
+./scripts/flash.sh --box-3 /dev/cu.usbmodem1101
+# or encrypted flash:
+./scripts/flash-secure.sh --box-3 /dev/cu.usbmodem1101
+```
+
+`--box-3` applies the `esp32s3` target plus board-specific GPIO safety and factory-reset defaults.
+
 ## Quick Start
 
 ### One-Line Setup
@@ -307,6 +318,8 @@ Or use the convenience scripts:
 ./scripts/flash.sh          # Flash to device
 ./scripts/flash-secure.sh   # Flash with encryption (dev mode, key readable)
 ./scripts/flash-secure.sh --production  # Flash with key read-protected
+./scripts/build.sh --box-3  # Build with ESP32-S3-BOX-3 preset
+./scripts/flash.sh --box-3 /dev/cu.usbmodem1101  # Flash with ESP32-S3-BOX-3 preset
 ./scripts/provision.sh      # Provision WiFi/API credentials into NVS
 ./scripts/provision-dev.sh  # Local profile wrapper for repeat non-interactive provisioning
 ./scripts/telegram-clear-backlog.sh  # Clear queued Telegram updates for current token
@@ -435,7 +448,8 @@ zclaw/
 │   └── host/           # Host-based unit tests
 ├── install.sh          # One-line setup script
 ├── partitions.csv      # Flash partition layout (dual OTA)
-└── sdkconfig.defaults  # SDK defaults
+├── sdkconfig.defaults  # SDK defaults
+└── sdkconfig.esp32s3-box-3.defaults # ESP32-S3-BOX-3 preset defaults
 ```
 
 ### Running in QEMU
@@ -597,7 +611,8 @@ If you don't enable encryption and lose the device, immediately revoke:
 ## Factory Reset
 
 Default is GPIO9 (BOOT on XIAO ESP32-C3): hold for 5+ seconds during startup
-to erase all settings. On other boards, update `FACTORY_RESET_PIN` in `main/config.h`.
+to erase all settings. On other boards, adjust `zclaw Configuration -> Factory Reset`
+in `idf.py menuconfig` or use a board preset (for example `--box-3`).
 
 ## License
 
