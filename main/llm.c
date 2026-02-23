@@ -461,6 +461,9 @@ esp_err_t llm_init(void)
         }
     }
 
+    // Reset key state first so re-init never keeps stale credentials in RAM.
+    memset(s_api_key, 0, sizeof(s_api_key));
+
     // Load API key from NVS
     if (!memory_get(NVS_KEY_API_KEY, s_api_key, sizeof(s_api_key))) {
 #if defined(CONFIG_ZCLAW_CLAUDE_API_KEY)
@@ -557,6 +560,13 @@ const char *llm_get_model(void)
 {
     return s_model;
 }
+
+#if CONFIG_ZCLAW_STUB_LLM
+bool llm_stub_has_api_key_for_test(void)
+{
+    return s_api_key[0] != '\0';
+}
+#endif
 
 bool llm_is_openai_format(void)
 {

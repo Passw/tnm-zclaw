@@ -583,6 +583,9 @@ verify_openai_api_key() {
         return 2
     fi
 
+    # Runtime uses chat-completions. For key verification, always hit models endpoint.
+    api_url="$(models_endpoint_from_chat_endpoint "$api_url")"
+
     response_file="$(mktemp -t zclaw-openai-check.XXXXXX 2>/dev/null || mktemp)"
     if ! http_code="$(curl -sS -o "$response_file" -w "%{http_code}" \
         -H "authorization: Bearer $api_key" \
@@ -643,6 +646,9 @@ verify_openrouter_api_key() {
         echo "Warning: curl not found; skipping OpenRouter API check."
         return 2
     fi
+
+    # Runtime uses chat-completions. For key verification, always hit models endpoint.
+    api_url="$(models_endpoint_from_chat_endpoint "$api_url")"
 
     response_file="$(mktemp -t zclaw-openrouter-check.XXXXXX 2>/dev/null || mktemp)"
     if ! http_code="$(curl -sS -o "$response_file" -w "%{http_code}" \

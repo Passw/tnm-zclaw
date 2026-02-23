@@ -113,6 +113,18 @@ TEST(custom_api_url_override_applies_to_any_backend)
     return 0;
 }
 
+TEST(reinit_without_key_clears_previous_api_key_state)
+{
+    configure_mock_store("openai", NULL, "test-key", NULL);
+    ASSERT(llm_init() == ESP_OK);
+    ASSERT(llm_stub_has_api_key_for_test());
+
+    configure_mock_store("ollama", NULL, NULL, NULL);
+    ASSERT(llm_init() == ESP_OK);
+    ASSERT(!llm_stub_has_api_key_for_test());
+    return 0;
+}
+
 int test_llm_runtime_all(void)
 {
     int failures = 0;
@@ -163,6 +175,13 @@ int test_llm_runtime_all(void)
 
     printf("  custom_api_url_override_applies_to_any_backend... ");
     if (test_custom_api_url_override_applies_to_any_backend() == 0) {
+        printf("OK\n");
+    } else {
+        failures++;
+    }
+
+    printf("  reinit_without_key_clears_previous_api_key_state... ");
+    if (test_reinit_without_key_clears_previous_api_key_state() == 0) {
         printf("OK\n");
     } else {
         failures++;

@@ -198,6 +198,89 @@ LAST_PORT=
                 check=False,
             )
 
+    def _run_provision_api_check_capture_url(
+        self,
+        *,
+        backend: str,
+        api_url: str,
+    ) -> tuple[subprocess.CompletedProcess[str], str]:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            curl_url_file = tmp / "curl-url.txt"
+
+            home = tmp / "home"
+            export_dir = home / "esp" / "esp-idf"
+            export_dir.mkdir(parents=True, exist_ok=True)
+            (export_dir / "export.sh").write_text(
+                "export IDF_PATH=\"$HOME/esp/esp-idf\"\n",
+                encoding="utf-8",
+            )
+
+            _write_executable(
+                bin_dir / "curl",
+                "#!/bin/sh\n"
+                "out=''\n"
+                "url=''\n"
+                "while [ $# -gt 0 ]; do\n"
+                "  case \"$1\" in\n"
+                "    -o)\n"
+                "      out=\"$2\"\n"
+                "      shift 2\n"
+                "      ;;\n"
+                "    -w|-H|-d|--connect-timeout|--max-time)\n"
+                "      shift 2\n"
+                "      ;;\n"
+                "    -s|-S|-sS)\n"
+                "      shift\n"
+                "      ;;\n"
+                "    *)\n"
+                "      url=\"$1\"\n"
+                "      shift\n"
+                "      ;;\n"
+                "  esac\n"
+                "done\n"
+                "printf '%s' \"$url\" > \"$CURL_URL_FILE\"\n"
+                "if [ -n \"$out\" ]; then\n"
+                "  printf '%s' '{\"error\":{\"message\":\"invalid api key\"}}' > \"$out\"\n"
+                "fi\n"
+                "printf '%s' '401'\n",
+            )
+
+            env = os.environ.copy()
+            env["HOME"] = str(home)
+            env["PATH"] = f"{bin_dir}:/usr/bin:/bin"
+            env["TERM"] = "dumb"
+            env["CURL_URL_FILE"] = str(curl_url_file)
+
+            proc = subprocess.run(
+                [
+                    str(PROVISION_SH),
+                    "--yes",
+                    "--port",
+                    "/dev/null",
+                    "--ssid",
+                    "TestNet",
+                    "--pass",
+                    "password123",
+                    "--backend",
+                    backend,
+                    "--api-key",
+                    "sk-test",
+                    "--api-url",
+                    api_url,
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            called_url = curl_url_file.read_text(encoding="utf-8") if curl_url_file.exists() else ""
+            return proc, called_url
+
     def _run_provision_ollama_missing_api_url(self) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
@@ -297,6 +380,26 @@ LAST_PORT=
         self.assertNotEqual(proc.returncode, 0, msg=output)
         self.assertIn("Verifying OpenRouter API key", output)
         self.assertIn("Error: API check failed in --yes mode.", output)
+
+    def test_provision_openai_api_check_uses_models_endpoint_for_chat_override(self) -> None:
+        proc, called_url = self._run_provision_api_check_capture_url(
+            backend="openai",
+            api_url="https://api.openai.com/v1/chat/completions",
+        )
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertNotEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Verifying OpenAI API key", output)
+        self.assertEqual(called_url, "https://api.openai.com/v1/models")
+
+    def test_provision_openrouter_api_check_uses_models_endpoint_for_chat_override(self) -> None:
+        proc, called_url = self._run_provision_api_check_capture_url(
+            backend="openrouter",
+            api_url="https://openrouter.ai/api/v1/chat/completions",
+        )
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertNotEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Verifying OpenRouter API key", output)
+        self.assertEqual(called_url, "https://openrouter.ai/api/v1/models")
 
     def test_provision_ollama_requires_api_url_in_yes_mode(self) -> None:
         proc = self._run_provision_ollama_missing_api_url()
