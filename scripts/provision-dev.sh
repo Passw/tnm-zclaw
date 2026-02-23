@@ -16,7 +16,7 @@ BACKEND_OVERRIDE=""
 MODEL_OVERRIDE=""
 API_KEY_OVERRIDE=""
 TG_TOKEN_OVERRIDE=""
-TG_CHAT_ID_OVERRIDE=""
+TG_CHAT_IDS_OVERRIDE=""
 SHOW_CONFIG=false
 WRITE_TEMPLATE=false
 SKIP_API_CHECK=false
@@ -41,7 +41,8 @@ Overrides:
   --model <model-id>
   --api-key <key>
   --tg-token <token>
-  --tg-chat-id <id>
+  --tg-chat-id <id[,id...]>
+  --tg-chat-ids <list>     Alias of --tg-chat-id
 
 Examples:
   $0 --write-template
@@ -75,6 +76,7 @@ ZCLAW_API_KEY=
 # Optional Telegram credentials:
 ZCLAW_TG_TOKEN=
 ZCLAW_TG_CHAT_ID=
+ZCLAW_TG_CHAT_IDS=
 EOF
     chmod 600 "$ENV_FILE"
     echo "Wrote template: $ENV_FILE"
@@ -96,19 +98,50 @@ mask_secret() {
     echo "${value:0:4}...${value: -4}"
 }
 
+trim_spaces() {
+    local value="$1"
+    value="${value#"${value%%[![:space:]]*}"}"
+    value="${value%"${value##*[![:space:]]}"}"
+    printf '%s' "$value"
+}
+
 mask_chat_id() {
     local value="${1:-}"
+    local part
+    local token
     local len
+    local masked=""
+    local IFS=','
+
     if [ -z "$value" ]; then
         echo "<empty>"
         return
     fi
-    len=${#value}
-    if [ "$len" -le 4 ]; then
-        echo "<redacted>"
-        return
+
+    for part in $value; do
+        token="$(trim_spaces "$part")"
+        if [ -z "$token" ]; then
+            continue
+        fi
+        len=${#token}
+        if [ "$len" -le 4 ]; then
+            token="<redacted>"
+        else
+            token="****${token: -4}"
+        fi
+
+        if [ -z "$masked" ]; then
+            masked="$token"
+        else
+            masked="$masked,$token"
+        fi
+    done
+
+    if [ -z "$masked" ]; then
+        echo "<empty>"
+    else
+        echo "$masked"
     fi
-    echo "****${value: -4}"
 }
 
 extract_bot_id() {
@@ -224,7 +257,12 @@ while [ $# -gt 0 ]; do
             ;;
         --tg-chat-id)
             [ $# -ge 2 ] || { echo "Error: --tg-chat-id requires a value."; exit 1; }
-            TG_CHAT_ID_OVERRIDE="$2"
+            TG_CHAT_IDS_OVERRIDE="$2"
+            shift 2
+            ;;
+        --tg-chat-ids)
+            [ $# -ge 2 ] || { echo "Error: --tg-chat-ids requires a value."; exit 1; }
+            TG_CHAT_IDS_OVERRIDE="$2"
             shift 2
             ;;
         --show-config)
@@ -280,7 +318,7 @@ SSID="${SSID_OVERRIDE:-${ZCLAW_WIFI_SSID:-}}"
 BACKEND="${BACKEND_OVERRIDE:-${ZCLAW_BACKEND:-openai}}"
 MODEL="${MODEL_OVERRIDE:-${ZCLAW_MODEL:-}}"
 TG_TOKEN="${TG_TOKEN_OVERRIDE:-${ZCLAW_TG_TOKEN:-}}"
-TG_CHAT_ID="${TG_CHAT_ID_OVERRIDE:-${ZCLAW_TG_CHAT_ID:-}}"
+TG_CHAT_IDS="${TG_CHAT_IDS_OVERRIDE:-${ZCLAW_TG_CHAT_IDS:-${ZCLAW_TG_CHAT_ID:-}}}"
 
 if [ "$PASS_OVERRIDE_SET" = true ]; then
     WIFI_PASS="$PASS_OVERRIDE"
@@ -316,7 +354,7 @@ if [ "$SHOW_CONFIG" = true ]; then
     echo "  API key: $(mask_secret "$API_KEY")"
     echo "  Telegram bot ID: $BOT_ID (safe identifier)"
     echo "  Telegram token: $(mask_secret "$TG_TOKEN")"
-    echo "  Telegram chat ID: $(mask_chat_id "$TG_CHAT_ID")"
+    echo "  Telegram chat ID(s): $(mask_chat_id "$TG_CHAT_IDS")"
 fi
 
 PROVISION_ARGS=(--yes)
@@ -337,8 +375,8 @@ PROVISION_ARGS+=(--api-key "$API_KEY")
 if [ -n "$TG_TOKEN" ]; then
     PROVISION_ARGS+=(--tg-token "$TG_TOKEN")
 fi
-if [ -n "$TG_CHAT_ID" ]; then
-    PROVISION_ARGS+=(--tg-chat-id "$TG_CHAT_ID")
+if [ -n "$TG_CHAT_IDS" ]; then
+    PROVISION_ARGS+=(--tg-chat-id "$TG_CHAT_IDS")
 fi
 if [ "$SKIP_API_CHECK" = true ]; then
     PROVISION_ARGS+=(--skip-api-check)

@@ -167,6 +167,51 @@ class WebRelayTests(unittest.TestCase):
             bridge.ask("hello")
         self.assertIn("appears busy", str(ctx.exception))
 
+    def test_serial_bridge_ignores_pre_echo_noise(self) -> None:
+        class FakeSerial:
+            def __init__(self) -> None:
+                self.lines = [
+                    b"_free=161596 heap_delta=-4500\n",
+                    b"hello\n",
+                    b"I (123) agent: Processing: hello\n",
+                    b"Hi there\n",
+                    b"\n",
+                ]
+                self.writes: list[bytes] = []
+
+            def reset_input_buffer(self) -> None:
+                return
+
+            def read(self, size: int) -> bytes:
+                return b""
+
+            def write(self, payload: bytes) -> int:
+                self.writes.append(payload)
+                return len(payload)
+
+            def flush(self) -> None:
+                return
+
+            def readline(self) -> bytes:
+                if self.lines:
+                    return self.lines.pop(0)
+                return b""
+
+        bridge = SerialAgentBridge(
+            port="/dev/cu.usbmodem1101",
+            baudrate=115200,
+            serial_timeout_s=0.05,
+            response_timeout_s=0.2,
+            idle_timeout_s=0.02,
+            log_serial=False,
+        )
+        fake = FakeSerial()
+        bridge._serial = fake
+
+        reply = bridge.ask("hello")
+        self.assertEqual(reply, "Hi there")
+        self.assertEqual(fake.writes, [b"hello\n"])
+
     def test_mock_bridge_commands(self) -> None:
         bridge = MockAgentBridge(latency_s=0.0)
         self.assertEqual(bridge.ask("ping"), "pong")

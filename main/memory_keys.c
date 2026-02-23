@@ -17,6 +17,7 @@ bool memory_keys_is_sensitive(const char *key)
         NVS_KEY_API_KEY,
         NVS_KEY_TG_TOKEN,
         NVS_KEY_TG_CHAT_ID,
+        NVS_KEY_TG_CHAT_IDS,
         NVS_KEY_WIFI_PASS,
         NVS_KEY_LLM_BACKEND,
         NVS_KEY_LLM_MODEL,

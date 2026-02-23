@@ -159,7 +159,7 @@ static void queue_channel_response(const char *text)
     }
 }
 
-static void queue_telegram_response(const char *text)
+static void queue_telegram_response(const char *text, int64_t chat_id)
 {
     if (!s_telegram_output_queue) {
         return;
@@ -168,16 +168,17 @@ static void queue_telegram_response(const char *text)
     telegram_msg_t msg;
     strncpy(msg.text, text, TELEGRAM_MAX_MSG_LEN - 1);
     msg.text[TELEGRAM_MAX_MSG_LEN - 1] = '\0';
+    msg.chat_id = chat_id;
 
     if (xQueueSend(s_telegram_output_queue, &msg, pdMS_TO_TICKS(1000)) != pdTRUE) {
         ESP_LOGE(TAG, "Failed to send response to Telegram queue");
     }
 }
 
-static void send_response(const char *text)
+static void send_response(const char *text, int64_t chat_id)
 {
     queue_channel_response(text);
-    queue_telegram_response(text);
+    queue_telegram_response(text, chat_id);
 }
 
 static bool is_whitespace_char(char c)
@@ -398,7 +399,7 @@ static bool is_cron_trigger_message(const char *message)
     return strncmp(message, "[CRON ", 6) == 0;
 }
 
-static void handle_start_command(void)
+static void handle_start_command(int64_t chat_id)
 {
     static const char *START_HELP_TEXT =
         "zclaw online.\n\n"
@@ -417,10 +418,10 @@ static void handle_start_command(void)
         "- /settings (show status)\n"
         "- /stop (pause intake)\n"
         "- /resume (resume)";
-    send_response(START_HELP_TEXT);
+    send_response(START_HELP_TEXT, chat_id);
 }
 
-static void handle_settings_command(void)
+static void handle_settings_command(int64_t chat_id)
 {
     char settings_text[384];
     snprintf(settings_text, sizeof(settings_text),
@@ -432,11 +433,19 @@ static void handle_settings_command(void)
              "- Device settings are global (e.g., timezone <name>)",
              s_messages_paused ? "paused" : "active",
              persona_name(s_persona));
-    send_response(settings_text);
+    send_response(settings_text, chat_id);
+}
+
+static int64_t response_chat_id_for_source(message_source_t source, int64_t chat_id)
+{
+    if (source == MSG_SOURCE_TELEGRAM && chat_id != 0) {
+        return chat_id;
+    }
+    return 0;
 }
 
 // Process a single user message
-static void process_message(const char *user_message)
+static void process_message(const char *user_message, int64_t reply_chat_id)
 {
     ESP_LOGI(TAG, "Processing: %s", user_message);
     int history_turn_start = s_history_len;
@@ -453,18 +462,18 @@ static void process_message(const char *user_message)
 
     if (is_command(user_message, "resume")) {
         if (!s_messages_paused) {
-            send_response("zclaw is already active.");
+            send_response("zclaw is already active.", reply_chat_id);
             metrics_log_request(&metrics, "resume_noop");
             return;
         }
         s_messages_paused = false;
-        send_response("zclaw resumed. Send /start for command help.");
+        send_response("zclaw resumed. Send /start for command help.", reply_chat_id);
         metrics_log_request(&metrics, "resumed");
         return;
     }
 
     if (is_command(user_message, "settings")) {
-        handle_settings_command();
+        handle_settings_command(reply_chat_id);
         metrics_log_request(&metrics, "settings_handled");
         return;
     }
@@ -476,14 +485,14 @@ static void process_message(const char *user_message)
     }
 
     if (is_command(user_message, "help")) {
-        handle_start_command();
+        handle_start_command(reply_chat_id);
         metrics_log_request(&metrics, "help_handled");
         return;
     }
 
     if (is_command(user_message, "stop")) {
         s_messages_paused = true;
-        send_response("zclaw paused. I will ignore new messages until /resume.");
+        send_response("zclaw paused. I will ignore new messages until /resume.", reply_chat_id);
         metrics_log_request(&metrics, "paused");
         return;
     }
@@ -503,7 +512,7 @@ static void process_message(const char *user_message)
         }
 
         s_last_start_response_us = now_us;
-        handle_start_command();
+        handle_start_command(reply_chat_id);
         metrics_log_request(&metrics, "start_handled");
         return;
     }
@@ -554,7 +563,7 @@ static void process_message(const char *user_message)
         if (!request) {
             ESP_LOGE(TAG, "Failed to build request JSON");
             history_rollback_to(history_turn_start, "request build failed");
-            send_response("Error: Failed to build request");
+            send_response("Error: Failed to build request", reply_chat_id);
             metrics_log_request(&metrics, "request_build_error");
             return;
         }
@@ -566,7 +575,7 @@ static void process_message(const char *user_message)
         if (!ratelimit_check(rate_reason, sizeof(rate_reason))) {
             free(request);
             history_rollback_to(history_turn_start, "rate limited");
-            send_response(rate_reason);
+            send_response(rate_reason, reply_chat_id);
             metrics_log_request(&metrics, "rate_limited");
             return;
         }
@@ -635,7 +644,7 @@ static void process_message(const char *user_message)
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "LLM request failed after %d retries", LLM_MAX_RETRIES);
             history_rollback_to(history_turn_start, "llm request failed");
-            send_response("Error: Failed to contact LLM API after retries");
+            send_response("Error: Failed to contact LLM API after retries", reply_chat_id);
             metrics_log_request(&metrics, "llm_error");
             return;
         }
@@ -655,7 +664,7 @@ static void process_message(const char *user_message)
                                   &tool_input)) {
             ESP_LOGE(TAG, "Failed to parse response");
             history_rollback_to(history_turn_start, "llm response parse failed");
-            send_response("Error: Failed to parse LLM response");
+            send_response("Error: Failed to parse LLM response", reply_chat_id);
             json_free_parsed_response();
             metrics_log_request(&metrics, "parse_error");
             return;
@@ -717,10 +726,10 @@ static void process_message(const char *user_message)
             // Text response - we're done
             if (text_out[0] != '\0') {
                 history_add("assistant", text_out, false, false, NULL, NULL);
-                send_response(text_out);
+                send_response(text_out, reply_chat_id);
             } else {
                 history_add("assistant", "(No response from Claude)", false, false, NULL, NULL);
-                send_response("(No response from Claude)");
+                send_response("(No response from Claude)", reply_chat_id);
             }
             json_free_parsed_response();
             done = true;
@@ -730,7 +739,7 @@ static void process_message(const char *user_message)
     if (!done) {
         ESP_LOGW(TAG, "Max tool rounds reached");
         history_add("assistant", "(Reached max tool iterations)", false, false, NULL, NULL);
-        send_response("(Reached max tool iterations)");
+        send_response("(Reached max tool iterations)", reply_chat_id);
         metrics_log_request(&metrics, "max_rounds");
         return;
     }
@@ -770,7 +779,12 @@ void agent_test_set_queues(QueueHandle_t channel_output_queue,
 
 void agent_test_process_message(const char *user_message)
 {
-    process_message(user_message);
+    process_message(user_message, 0);
+}
+
+void agent_test_process_message_for_chat(const char *user_message, int64_t reply_chat_id)
+{
+    process_message(user_message, reply_chat_id);
 }
 #endif
 
@@ -784,7 +798,7 @@ static void agent_task(void *arg)
 
     while (1) {
         if (xQueueReceive(s_input_queue, &msg, portMAX_DELAY) == pdTRUE) {
-            process_message(msg.text);
+            process_message(msg.text, response_chat_id_for_source(msg.source, msg.chat_id));
         }
     }
 }

@@ -4,6 +4,7 @@
 #include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include <stdint.h>
 
 // Start the agent task
 esp_err_t agent_start(QueueHandle_t input_queue,
@@ -16,6 +17,7 @@ void agent_test_reset(void);
 void agent_test_set_queues(QueueHandle_t channel_output_queue,
                            QueueHandle_t telegram_output_queue);
 void agent_test_process_message(const char *user_message);
+void agent_test_process_message_for_chat(const char *user_message, int64_t reply_chat_id);
 #endif
 
 #endif // AGENT_H

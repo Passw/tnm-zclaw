@@ -3,6 +3,7 @@
 #include "messages.h"
 #include "memory.h"
 #include "nvs_keys.h"
+#include "telegram_chat_ids.h"
 #include "telegram_token.h"
 #include "telegram_update.h"
 #include "text_buffer.h"
@@ -20,7 +21,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
 #include <stdint.h>
 #include <limits.h>
 
@@ -30,6 +30,8 @@ static QueueHandle_t s_input_queue;
 static QueueHandle_t s_output_queue;
 static char s_bot_token[64] = {0};
 static int64_t s_chat_id = 0;
+static int64_t s_allowed_chat_ids[TELEGRAM_MAX_ALLOWED_CHAT_IDS] = {0};
+static size_t s_allowed_chat_count = 0;
 static int64_t s_last_update_id = 0;
 static telegram_msg_t s_send_msg;
 static uint32_t s_stale_only_poll_streak = 0;
@@ -261,38 +263,45 @@ static bool format_int64_decimal(int64_t value, char *out, size_t out_len)
     return true;
 }
 
-static bool parse_chat_id_string(const char *input, int64_t *chat_id_out)
+static void clear_allowed_chat_ids(void)
 {
-    const unsigned char *cursor = (const unsigned char *)input;
-    char *endptr = NULL;
-    long long parsed;
+    memset(s_allowed_chat_ids, 0, sizeof(s_allowed_chat_ids));
+    s_allowed_chat_count = 0;
+    s_chat_id = 0;
+}
 
-    if (!input || !chat_id_out) {
+static bool set_allowed_chat_ids_from_string(const char *input)
+{
+    int64_t parsed_ids[TELEGRAM_MAX_ALLOWED_CHAT_IDS] = {0};
+    size_t parsed_count = 0;
+
+    if (!telegram_chat_ids_parse(input, parsed_ids, TELEGRAM_MAX_ALLOWED_CHAT_IDS, &parsed_count)) {
         return false;
     }
 
-    while (*cursor != '\0' && isspace(*cursor)) {
-        cursor++;
+    clear_allowed_chat_ids();
+    for (size_t i = 0; i < parsed_count; i++) {
+        s_allowed_chat_ids[i] = parsed_ids[i];
     }
-    if (*cursor == '\0') {
-        return false;
-    }
-
-    parsed = strtoll((const char *)cursor, &endptr, 10);
-    if (!endptr || endptr == (const char *)cursor) {
-        return false;
-    }
-
-    while (*endptr != '\0' && isspace((unsigned char)*endptr)) {
-        endptr++;
-    }
-
-    if (*endptr != '\0' || parsed == 0) {
-        return false;
-    }
-
-    *chat_id_out = (int64_t)parsed;
+    s_allowed_chat_count = parsed_count;
+    s_chat_id = s_allowed_chat_ids[0];
     return true;
+}
+
+static bool is_chat_authorized(int64_t incoming_chat_id)
+{
+    return telegram_chat_ids_contains(s_allowed_chat_ids, s_allowed_chat_count, incoming_chat_id);
+}
+
+static int64_t resolve_target_chat_id(int64_t requested_chat_id)
+{
+    if (requested_chat_id != 0) {
+        if (is_chat_authorized(requested_chat_id)) {
+            return requested_chat_id;
+        }
+        ESP_LOGW(TAG, "Refusing outbound send to unauthorized chat ID");
+    }
+    return s_chat_id;
 }
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)
@@ -332,21 +341,39 @@ esp_err_t telegram_init(void)
         ESP_LOGW(TAG, "Telegram token format invalid (bot ID unavailable)");
     }
 
-    // Load last known chat ID (optional)
-    char chat_id_str[24];
-    if (memory_get(NVS_KEY_TG_CHAT_ID, chat_id_str, sizeof(chat_id_str))) {
-        int64_t parsed_chat_id = 0;
-        if (parse_chat_id_string(chat_id_str, &parsed_chat_id)) {
-            s_chat_id = parsed_chat_id;
+    clear_allowed_chat_ids();
+
+    // Preferred format: comma-separated allowlist.
+    char chat_ids_str[128];
+    if (memory_get(NVS_KEY_TG_CHAT_IDS, chat_ids_str, sizeof(chat_ids_str))) {
+        if (set_allowed_chat_ids_from_string(chat_ids_str)) {
             char chat_id_buf[24];
             if (format_int64_decimal(s_chat_id, chat_id_buf, sizeof(chat_id_buf))) {
-                ESP_LOGI(TAG, "Loaded chat ID: %s", chat_id_buf);
+                ESP_LOGI(TAG, "Loaded %u authorized chat IDs (primary: %s)",
+                         (unsigned)s_allowed_chat_count, chat_id_buf);
             } else {
-                ESP_LOGI(TAG, "Loaded chat ID");
+                ESP_LOGI(TAG, "Loaded %u authorized chat IDs",
+                         (unsigned)s_allowed_chat_count);
             }
         } else {
-            s_chat_id = 0;
-            ESP_LOGW(TAG, "Invalid Telegram chat ID in NVS: '%s'", chat_id_str);
+            ESP_LOGW(TAG, "Invalid Telegram chat ID list in NVS: '%s'", chat_ids_str);
+        }
+    }
+
+    // Backward compatibility: single ID key.
+    if (s_allowed_chat_count == 0) {
+        char chat_id_str[24];
+        if (memory_get(NVS_KEY_TG_CHAT_ID, chat_id_str, sizeof(chat_id_str))) {
+            if (set_allowed_chat_ids_from_string(chat_id_str)) {
+                char chat_id_buf[24];
+                if (format_int64_decimal(s_chat_id, chat_id_buf, sizeof(chat_id_buf))) {
+                    ESP_LOGI(TAG, "Loaded chat ID: %s", chat_id_buf);
+                } else {
+                    ESP_LOGI(TAG, "Loaded chat ID");
+                }
+            } else {
+                ESP_LOGW(TAG, "Invalid Telegram chat ID in NVS: '%s'", chat_id_str);
+            }
         }
     }
 
@@ -370,7 +397,7 @@ static void build_url(char *buf, size_t buf_size, const char *method)
     snprintf(buf, buf_size, "%s%s/%s", TELEGRAM_API_URL, s_bot_token, method);
 }
 
-esp_err_t telegram_send(const char *text)
+static esp_err_t telegram_send_to_chat(int64_t chat_id, const char *text)
 {
     telegram_http_ctx_t *ctx = NULL;
     esp_http_client_handle_t client = NULL;
@@ -382,8 +409,8 @@ esp_err_t telegram_send(const char *text)
 
     capture_net_diag_snapshot(&snapshot_before);
 
-    if (!telegram_is_configured() || s_chat_id == 0) {
-        ESP_LOGW(TAG, "Cannot send - not configured or no chat ID");
+    if (!telegram_is_configured() || chat_id == 0) {
+        ESP_LOGW(TAG, "Cannot send - not configured or no authorized chat IDs");
         return ESP_ERR_INVALID_STATE;
     }
 
@@ -395,7 +422,7 @@ esp_err_t telegram_send(const char *text)
     if (!root) {
         return ESP_ERR_NO_MEM;
     }
-    if (!cJSON_AddNumberToObject(root, "chat_id", (double)s_chat_id) ||
+    if (!cJSON_AddNumberToObject(root, "chat_id", (double)chat_id) ||
         !cJSON_AddStringToObject(root, "text", text)) {
         cJSON_Delete(root);
         return ESP_ERR_NO_MEM;
@@ -457,6 +484,11 @@ esp_err_t telegram_send(const char *text)
     free(body);
     free(ctx);
     return err;
+}
+
+esp_err_t telegram_send(const char *text)
+{
+    return telegram_send_to_chat(resolve_target_chat_id(0), text);
 }
 
 esp_err_t telegram_send_startup(void)
@@ -653,19 +685,8 @@ static esp_err_t telegram_poll(void)
                     ESP_LOGW(TAG, "Chat ID may have precision loss");
                 }
 
-                // Authentication: reject messages from unknown chat IDs
-                if (s_chat_id != 0 && incoming_chat_id != s_chat_id) {
-                    char chat_id_buf[24];
-                    if (format_int64_decimal(incoming_chat_id, chat_id_buf, sizeof(chat_id_buf))) {
-                        ESP_LOGW(TAG, "Rejected message from unauthorized chat: %s", chat_id_buf);
-                    } else {
-                        ESP_LOGW(TAG, "Rejected message from unauthorized chat");
-                    }
-                    continue;
-                }
-
-                // If no chat ID configured, reject all (must be set during provisioning)
-                if (s_chat_id == 0) {
+                // Require explicit allowlist configuration.
+                if (s_allowed_chat_count == 0) {
                     char chat_id_buf[24];
                     if (format_int64_decimal(incoming_chat_id, chat_id_buf, sizeof(chat_id_buf))) {
                         ESP_LOGW(TAG, "No chat ID configured - ignoring message from %s", chat_id_buf);
@@ -675,10 +696,23 @@ static esp_err_t telegram_poll(void)
                     continue;
                 }
 
+                // Authentication: reject messages from unknown chat IDs.
+                if (!is_chat_authorized(incoming_chat_id)) {
+                    char chat_id_buf[24];
+                    if (format_int64_decimal(incoming_chat_id, chat_id_buf, sizeof(chat_id_buf))) {
+                        ESP_LOGW(TAG, "Rejected message from unauthorized chat: %s", chat_id_buf);
+                    } else {
+                        ESP_LOGW(TAG, "Rejected message from unauthorized chat");
+                    }
+                    continue;
+                }
+
                 // Push message to input queue
                 channel_msg_t msg;
                 strncpy(msg.text, text->valuestring, CHANNEL_RX_BUF_SIZE - 1);
                 msg.text[CHANNEL_RX_BUF_SIZE - 1] = '\0';
+                msg.source = MSG_SOURCE_TELEGRAM;
+                msg.chat_id = incoming_chat_id;
 
                 char update_id_buf[24];
                 if (format_int64_decimal(incoming_update_id, update_id_buf, sizeof(update_id_buf))) {
@@ -739,11 +773,12 @@ static void telegram_send_task(void *arg)
     (void)arg;
     while (1) {
         if (xQueueReceive(s_output_queue, &s_send_msg, portMAX_DELAY) == pdTRUE) {
-            if (!telegram_is_configured() || s_chat_id == 0) {
+            int64_t target_chat_id = resolve_target_chat_id(s_send_msg.chat_id);
+            if (!telegram_is_configured() || target_chat_id == 0) {
                 continue;
             }
 
-            telegram_send(s_send_msg.text);
+            telegram_send_to_chat(target_chat_id, s_send_msg.text);
         }
     }
 }

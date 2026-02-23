@@ -203,6 +203,7 @@ LAST_PORT=
         *,
         ssid: str,
         wifi_pass: str,
+        tg_chat_ids: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
@@ -219,22 +220,26 @@ LAST_PORT=
             env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
             env["TERM"] = "dumb"
 
+            cmd = [
+                str(PROVISION_SH),
+                "--yes",
+                "--skip-api-check",
+                "--port",
+                "/dev/null",
+                "--ssid",
+                ssid,
+                "--pass",
+                wifi_pass,
+                "--backend",
+                "openai",
+                "--api-key",
+                "sk-test",
+            ]
+            if tg_chat_ids is not None:
+                cmd.extend(["--tg-chat-id", tg_chat_ids])
+
             return subprocess.run(
-                [
-                    str(PROVISION_SH),
-                    "--yes",
-                    "--skip-api-check",
-                    "--port",
-                    "/dev/null",
-                    "--ssid",
-                    ssid,
-                    "--pass",
-                    wifi_pass,
-                    "--backend",
-                    "openai",
-                    "--api-key",
-                    "sk-test",
-                ],
+                cmd,
                 cwd=PROJECT_ROOT,
                 env=env,
                 text=True,
@@ -300,6 +305,85 @@ LAST_PORT=
         output = f"{proc.stdout}\n{proc.stderr}"
         self.assertNotEqual(proc.returncode, 0, msg=output)
         self.assertIn("password exceeds 63 bytes", output)
+
+    def test_provision_rejects_more_than_4_telegram_chat_ids(self) -> None:
+        proc = self._run_provision_length_validation(
+            ssid="HomeNetwork",
+            wifi_pass="password123",
+            tg_chat_ids="1,2,3,4,5",
+        )
+        output = f"{proc.stdout}\n{proc.stderr}"
+        self.assertNotEqual(proc.returncode, 0, msg=output)
+        self.assertIn("Use 1-4 non-zero integers", output)
+
+    def test_provision_writes_chat_id_allowlist_and_legacy_primary_key(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            home = tmp / "home"
+            idf_dir = home / "esp" / "esp-idf"
+            nvs_gen = idf_dir / "components" / "nvs_flash" / "nvs_partition_generator" / "nvs_partition_gen.py"
+            parttool = idf_dir / "components" / "partition_table" / "parttool.py"
+            nvs_gen.parent.mkdir(parents=True, exist_ok=True)
+            parttool.parent.mkdir(parents=True, exist_ok=True)
+            nvs_gen.write_text("# nvs generator stub path\n", encoding="utf-8")
+            parttool.write_text("# parttool stub path\n", encoding="utf-8")
+            (idf_dir / "export.sh").write_text(
+                "export IDF_PATH=\"$HOME/esp/esp-idf\"\n",
+                encoding="utf-8",
+            )
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir(parents=True, exist_ok=True)
+            _write_executable(
+                bin_dir / "python",
+                "#!/bin/sh\n"
+                "if [ \"$2\" = \"generate\" ]; then\n"
+                "  cp \"$3\" \"$CSV_CAPTURE\"\n"
+                "  : > \"$4\"\n"
+                "  exit 0\n"
+                "fi\n"
+                "exit 0\n",
+            )
+
+            env = os.environ.copy()
+            env["HOME"] = str(home)
+            env["PATH"] = f"{bin_dir}:/usr/bin:/bin:/usr/sbin:/sbin"
+            env["TERM"] = "dumb"
+            env["CSV_CAPTURE"] = str(tmp / "captured-nvs.csv")
+
+            proc = subprocess.run(
+                [
+                    str(PROVISION_SH),
+                    "--yes",
+                    "--skip-api-check",
+                    "--port",
+                    "/dev/null",
+                    "--ssid",
+                    "HomeNetwork",
+                    "--pass",
+                    "password123",
+                    "--backend",
+                    "openai",
+                    "--api-key",
+                    "sk-test",
+                    "--tg-token",
+                    "123456789:abcdef",
+                    "--tg-chat-id",
+                    "7585013353,-100222333444",
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            output = f"{proc.stdout}\n{proc.stderr}"
+            self.assertEqual(proc.returncode, 0, msg=output)
+
+            captured_csv = (tmp / "captured-nvs.csv").read_text(encoding="utf-8")
+            self.assertIn('tg_chat_id,data,string,"7585013353"', captured_csv)
+            self.assertIn('tg_chat_ids,data,string,"7585013353,-100222333444"', captured_csv)
 
     def test_erase_requires_explicit_mode(self) -> None:
         proc = subprocess.run(
@@ -610,6 +694,57 @@ LAST_PORT=
             self.assertIn("openrouter", args_text)
             self.assertIn("--api-key", args_text)
             self.assertIn("or-sk-test-xyz", args_text)
+
+    def test_provision_dev_forwards_multi_telegram_chat_ids(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            env_file = tmp / "dev.env"
+            args_file = tmp / "args.txt"
+            stub = tmp / "mock-provision.sh"
+
+            _write_executable(
+                stub,
+                "#!/bin/sh\n"
+                "printf '%s\\n' \"$@\" > \"$ARGS_FILE\"\n",
+            )
+            env_file.write_text(
+                "\n".join(
+                    [
+                        "ZCLAW_WIFI_SSID=Trident",
+                        "ZCLAW_BACKEND=openai",
+                        "ZCLAW_API_KEY=sk-test-1234567890",
+                        "ZCLAW_TG_TOKEN=123456789:abcdef",
+                        "ZCLAW_TG_CHAT_IDS=7585013353,-100222333444",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            env = os.environ.copy()
+            env["ARGS_FILE"] = str(args_file)
+            env["ZCLAW_PROVISION_SCRIPT"] = str(stub)
+
+            proc = subprocess.run(
+                [
+                    str(PROVISION_DEV_SH),
+                    "--env-file",
+                    str(env_file),
+                    "--show-config",
+                ],
+                cwd=PROJECT_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            output = f"{proc.stdout}\n{proc.stderr}"
+            self.assertEqual(proc.returncode, 0, msg=output)
+            args_text = args_file.read_text(encoding="utf-8")
+            self.assertIn("--tg-chat-id", args_text)
+            self.assertIn("7585013353,-100222333444", args_text)
+            self.assertIn("Telegram chat ID(s):", output)
 
     def test_provision_dev_errors_when_key_missing(self) -> None:
         with tempfile.TemporaryDirectory() as td:

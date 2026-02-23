@@ -48,6 +48,17 @@ static int recv_telegram_text(QueueHandle_t queue, char *out, size_t out_len)
     return 1;
 }
 
+static int recv_telegram_msg(QueueHandle_t queue, telegram_msg_t *out)
+{
+    if (!out) {
+        return 0;
+    }
+    if (xQueueReceive(queue, out, 0) != pdTRUE) {
+        return 0;
+    }
+    return 1;
+}
+
 static void reset_state(void)
 {
     mock_freertos_reset();
@@ -538,6 +549,34 @@ TEST(repeated_non_command_not_suppressed_after_failure)
     return 0;
 }
 
+TEST(telegram_response_preserves_reply_chat_id)
+{
+    QueueHandle_t channel_q;
+    QueueHandle_t telegram_q;
+    telegram_msg_t msg;
+    const char *success =
+        "{\"content\":[{\"type\":\"text\",\"text\":\"targeted reply\"}],\"stop_reason\":\"end_turn\"}";
+
+    reset_state();
+
+    channel_q = xQueueCreate(2, sizeof(channel_output_msg_t));
+    telegram_q = xQueueCreate(2, sizeof(telegram_msg_t));
+    ASSERT(channel_q != NULL);
+    ASSERT(telegram_q != NULL);
+    agent_test_set_queues(channel_q, telegram_q);
+
+    ASSERT(mock_llm_push_result(ESP_OK, success));
+    agent_test_process_message_for_chat("hello", -100222333444LL);
+
+    ASSERT(recv_telegram_msg(telegram_q, &msg) == 1);
+    ASSERT_STR_EQ(msg.text, "targeted reply");
+    ASSERT(msg.chat_id == -100222333444LL);
+
+    vQueueDelete(channel_q);
+    vQueueDelete(telegram_q);
+    return 0;
+}
+
 int test_agent_all(void)
 {
     int failures = 0;
@@ -630,6 +669,13 @@ int test_agent_all(void)
 
     printf("  repeated_non_command_not_suppressed_after_failure... ");
     if (test_repeated_non_command_not_suppressed_after_failure() == 0) {
+        printf("OK\n");
+    } else {
+        failures++;
+    }
+
+    printf("  telegram_response_preserves_reply_chat_id... ");
+    if (test_telegram_response_preserves_reply_chat_id() == 0) {
         printf("OK\n");
     } else {
         failures++;

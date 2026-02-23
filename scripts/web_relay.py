@@ -338,8 +338,11 @@ class SerialAgentBridge:
                         response_lines.append("")
                 continue
 
-            if not saw_echo and line.strip() == sent_prompt:
-                saw_echo = True
+            if not saw_echo:
+                if line.strip() == sent_prompt:
+                    saw_echo = True
+                # Ignore any noise before the command echo. This prevents stale
+                # non-log fragments from being mistaken as the response body.
                 continue
 
             if is_probable_esp_log_line(line):
