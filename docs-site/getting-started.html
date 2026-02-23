@@ -102,7 +102,7 @@ bash &lt;(curl -fsSL https://raw.githubusercontent.com/tnm/zclaw/main/scripts/bo
 
         <section class="section">
           <h2>LLM Provisioning Options</h2>
-          <p>Backend/model/API settings are runtime credentials in NVS, so you can change them any time without reflashing firmware.</p>
+          <p>Backend/model/API settings are runtime credentials in NVS, so you can change them any time without reflashing firmware. The install flow prompts for the same values when you run <code>./install.sh</code> with provisioning enabled.</p>
           <ul>
             <li><strong>anthropic</strong>, <strong>openai</strong>, <strong>openrouter</strong>: require <code>--api-key</code>.</li>
             <li><strong>ollama</strong>: requires <code>--api-url</code>; API key is optional.</li>
