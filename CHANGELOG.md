@@ -8,6 +8,23 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - No unreleased changes yet.
 
+## [2.7.1] - 2026-02-23
+
+### Fixed
+- Added board-preset support for `esp32s3-box-3` across `scripts/build.sh`, `scripts/flash.sh`, and `scripts/flash-secure.sh`, including `--box-3` aliases and the required `IDF_TARGET`/`SDKCONFIG_DEFAULTS` overrides.
+- Flash flows now fail fast when `--board esp32s3-box-3` is used against non-ESP32-S3 hardware.
+
+### Changed
+- Factory-reset pin/hold settings are now configurable via Kconfig (`CONFIG_ZCLAW_FACTORY_RESET_PIN`, `CONFIG_ZCLAW_FACTORY_RESET_HOLD_MS`) and consumed by runtime defaults.
+- Added `sdkconfig.esp32s3-box-3.defaults` with BOX-3-safe GPIO allowlist and factory-reset button mapping.
+
+### Docs
+- Added Getting Started and reference notes for using BOX-3 preset flags in build/flash flows.
+
+### Tests
+- Added host tests for board-preset argument plumbing and target-mismatch rejection paths.
+- Added `esp32s3-box-3` coverage to the firmware target matrix workflow.
+
 ## [2.7.0] - 2026-02-23
 
 ### Added
