@@ -351,7 +351,7 @@ default_model_for_backend() {
         anthropic) echo "claude-sonnet-4-5" ;;
         openai) echo "gpt-5.2" ;;
         openrouter) echo "minimax/minimax-m2.5" ;;
-        ollama) echo "llama3.2:3b" ;;
+        ollama) echo "qwen3:8b" ;;
         *) echo "claude-sonnet-4-5" ;;
     esac
 }
