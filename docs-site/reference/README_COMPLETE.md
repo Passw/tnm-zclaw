@@ -35,7 +35,7 @@ Agent: Done. GPIO2 is now off.
 - **Built-in and custom tools** - Ships with a pre-built set of tools, easy to extend
 - **GPIO control** — Read sensors, toggle relays, control LEDs
 - **Persistent memory** — Remembers things across reboots
-- **Any LLM backend** — Anthropic, OpenAI, or open source models via OpenRouter
+- **Any LLM backend** — Anthropic, OpenAI, OpenRouter, or Ollama (custom endpoint)
 - **$5 hardware** — Just an ESP32 dev board and WiFi
 - **~888 KiB guaranteed max binary** — Fits in dual OTA partitions with ~40% free
 
@@ -331,13 +331,13 @@ Or use the convenience scripts:
 3. Enter required values:
    - WiFi SSID
    - LLM provider
-   - LLM API key
+   - LLM API key (Anthropic/OpenAI/OpenRouter) or API URL (Ollama)
 4. Optional: WiFi password, Telegram bot token, Telegram chat ID allowlist
 5. Reboot board and watch logs with `./scripts/monitor.sh`
 
 `provision.sh` auto-detects your host WiFi SSID when possible.
-For Anthropic, it also sends a quick `hello` API check after key entry.
-Use `--skip-api-check` to bypass verification.
+Provisioning runs a quick provider connectivity check by default (`--skip-api-check` to bypass).
+For Ollama, set `--api-url` to a LAN-reachable endpoint (for example `http://192.168.1.50:11434`), not `127.0.0.1`.
 
 For local iteration, `provision-dev.sh` loads values from `~/.config/zclaw/dev.env` so you do not need to re-enter WiFi/API/Telegram details every run.
 
@@ -379,6 +379,7 @@ Edit `main/config.h` to customize:
 #define LLM_DEFAULT_MODEL_ANTHROPIC "claude-sonnet-4-5"   // Anthropic default
 #define LLM_DEFAULT_MODEL_OPENAI    "gpt-5.2"             // OpenAI default
 #define LLM_DEFAULT_MODEL_OPENROUTER "minimax/minimax-m2.5" // OpenRouter default
+#define LLM_DEFAULT_MODEL_OLLAMA    "qwen3:8b"            // Ollama default
 #define LLM_MAX_TOKENS 1024                   // Max response tokens
 #define MAX_HISTORY_TURNS 8                   // Conversation history length
 #define RATELIMIT_MAX_PER_HOUR 100            // LLM requests per hour
@@ -589,6 +590,7 @@ The script automatically detects if a device has encryption enabled and uses the
 
 If you don't enable encryption and lose the device, immediately revoke:
 - **API keys**: Regenerate in Anthropic/OpenAI/OpenRouter dashboard
+- **Ollama endpoints**: If self-hosted endpoint credentials or reverse-proxy auth are used, rotate those host/proxy secrets.
 - **Telegram bot**: Message @BotFather → `/revoke`
 - **Web relay secret**: Rotate `ZCLAW_WEB_API_KEY` on the host
 
