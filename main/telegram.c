@@ -295,13 +295,14 @@ static bool is_chat_authorized(int64_t incoming_chat_id)
 
 static int64_t resolve_target_chat_id(int64_t requested_chat_id)
 {
-    if (requested_chat_id != 0) {
-        if (is_chat_authorized(requested_chat_id)) {
-            return requested_chat_id;
-        }
+    int64_t target_chat_id = telegram_chat_ids_resolve_target(
+        s_allowed_chat_ids, s_allowed_chat_count, s_chat_id, requested_chat_id);
+
+    if (requested_chat_id != 0 && target_chat_id == 0) {
         ESP_LOGW(TAG, "Refusing outbound send to unauthorized chat ID");
     }
-    return s_chat_id;
+
+    return target_chat_id;
 }
 
 static esp_err_t http_event_handler(esp_http_client_event_t *evt)

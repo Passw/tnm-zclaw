@@ -59,6 +59,17 @@ TEST(contains_helper)
     return 0;
 }
 
+TEST(resolve_target_fails_closed_for_unauthorized_id)
+{
+    int64_t ids[TELEGRAM_MAX_ALLOWED_CHAT_IDS] = {7585013353LL, -100222333444LL};
+    int64_t primary = 7585013353LL;
+
+    ASSERT(telegram_chat_ids_resolve_target(ids, 2, primary, 0) == primary);
+    ASSERT(telegram_chat_ids_resolve_target(ids, 2, primary, -100222333444LL) == -100222333444LL);
+    ASSERT(telegram_chat_ids_resolve_target(ids, 2, primary, 99999999LL) == 0);
+    return 0;
+}
+
 int test_telegram_chat_ids_all(void)
 {
     int failures = 0;
@@ -88,6 +99,13 @@ int test_telegram_chat_ids_all(void)
 
     printf("  contains_helper... ");
     if (test_contains_helper() == 0) {
+        printf("OK\n");
+    } else {
+        failures++;
+    }
+
+    printf("  resolve_target_fails_closed_for_unauthorized_id... ");
+    if (test_resolve_target_fails_closed_for_unauthorized_id() == 0) {
         printf("OK\n");
     } else {
         failures++;

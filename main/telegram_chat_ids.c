@@ -109,3 +109,19 @@ bool telegram_chat_ids_contains(const int64_t *ids, size_t count, int64_t chat_i
     }
     return false;
 }
+
+int64_t telegram_chat_ids_resolve_target(const int64_t *ids,
+                                         size_t count,
+                                         int64_t primary_chat_id,
+                                         int64_t requested_chat_id)
+{
+    if (requested_chat_id == 0) {
+        return primary_chat_id;
+    }
+
+    if (telegram_chat_ids_contains(ids, count, requested_chat_id)) {
+        return requested_chat_id;
+    }
+
+    return 0;
+}
